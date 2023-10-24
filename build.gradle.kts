@@ -14,6 +14,10 @@ repositories {
 }
 
 dependencies {
+
+    runtimeOnly("org.jetbrains.kotlin:kotlin-reflect:1.9.10")
+    compileOnly("org.jetbrains.kotlin:kotlin-reflect:1.9.10")
+
     testImplementation(kotlin("test"))
 }
 
@@ -22,5 +26,5 @@ tasks.test {
 }
 
 tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions.jvmTarget = "19"
 }
