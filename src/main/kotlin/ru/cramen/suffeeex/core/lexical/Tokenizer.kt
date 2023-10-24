@@ -20,12 +20,9 @@ class Tokenizer {
 
     private fun getMatchedToken(s: String, position: Int = 0): Token? {
         if (position >= s.length) return null
-        return when (s.substring(position, position + 1)) {
-            "(" -> OpenBracketToken
-            ")" -> CloseBracketToken
-            "[" -> OpenSquareBracketToken
-            "]" -> CloseSquareBracketToken
-            "," -> CommaToken
+        val firstSymbol = s.substring(position, position + 1)
+        return when (firstSymbol) {
+            in simpleTokens.keys -> simpleTokens[firstSymbol]
             "\"" -> whileString(s, position)?.let { return StringToken(it) }
             "$" -> variableSymbols.whileStartsString(s, position)?.checkVariableFormat()?.let { return VariableToken(it) }
             in spaces -> spaces.whileStartsString(s, position)?.let { return SpaceToken(it) }
@@ -69,6 +66,13 @@ class Tokenizer {
 
     companion object {
         private fun CharRange.toSet() = this.map { it.toString() }.toSet()
+        private val simpleTokens = mapOf(
+            "(" to OpenBracketToken,
+            ")" to CloseBracketToken,
+            "[" to OpenSquareBracketToken,
+            "]" to CloseSquareBracketToken,
+            "," to CommaToken,
+        )
         private val special = setOf("(", ")", "[", "]", ",", "$", "\"")
         private val spaces = setOf(" ", "\r", "\n", "\t")
         private val numbers = ('0'..'9').toSet() + "."
