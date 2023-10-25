@@ -67,13 +67,15 @@ class Tokenizer {
     companion object {
         private fun CharRange.toSet() = this.map { it.toString() }.toSet()
         private val simpleTokens = mapOf(
-            "(" to OpenBracketToken,
-            ")" to CloseBracketToken,
-            "[" to OpenSquareBracketToken,
-            "]" to CloseSquareBracketToken,
+            "(" to OpenBraceToken,
+            ")" to CloseBraceToken,
+            "[" to OpenSquareBraceToken,
+            "]" to CloseSquareBraceToken,
+            "{" to OpenCurlyBraceToken,
+            "}" to CloseCurlyBraceToken,
             "," to CommaToken,
         )
-        private val special = setOf("(", ")", "[", "]", ",", "$", "\"")
+        private val special = simpleTokens.keys + setOf("$", "\"")
         private val spaces = setOf(" ", "\r", "\n", "\t")
         private val numbers = ('0'..'9').toSet() + "."
         private val variableSymbols = ('a'..'z').toSet() +
