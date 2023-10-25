@@ -19,6 +19,7 @@ dependencies {
     compileOnly("org.jetbrains.kotlin:kotlin-reflect:1.9.10")
 
     testImplementation(kotlin("test"))
+    testImplementation("io.kotest:kotest-assertions-core-jvm:5.7.2")
 }
 
 tasks.test {
@@ -26,5 +27,5 @@ tasks.test {
 }
 
 tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "19"
+    kotlinOptions.jvmTarget = "17"
 }
