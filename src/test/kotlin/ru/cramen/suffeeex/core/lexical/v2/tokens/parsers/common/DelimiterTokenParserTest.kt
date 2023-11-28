@@ -1,9 +1,13 @@
-package ru.cramen.suffeeex.core.lexical.v2.tokens
+package ru.cramen.suffeeex.core.lexical.v2.tokens.parsers.common
 
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import ru.cramen.suffeeex.core.lexical.v2.Tokenizer
+import ru.cramen.suffeeex.core.lexical.v2.tokens.CommaTokenType
+import ru.cramen.suffeeex.core.lexical.v2.tokens.DelimiterTokenParser
+import ru.cramen.suffeeex.core.lexical.v2.tokens.SpaceTokenType
+import ru.cramen.suffeeex.core.lexical.v2.tokens.Token
 
 
 internal class DelimiterTokenParserTest {

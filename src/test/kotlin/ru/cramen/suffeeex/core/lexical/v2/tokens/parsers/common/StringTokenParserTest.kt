@@ -1,6 +1,9 @@
-package ru.cramen.suffeeex.core.lexical.v2.tokens
+package ru.cramen.suffeeex.core.lexical.v2.tokens.parsers.common
 
 import io.kotest.matchers.shouldBe
+import ru.cramen.suffeeex.core.lexical.v2.tokens.StringTokenParser
+import ru.cramen.suffeeex.core.lexical.v2.tokens.StringTokenType
+import ru.cramen.suffeeex.core.lexical.v2.tokens.Token
 import kotlin.test.Test
 
 internal class StringTokenParserTest {

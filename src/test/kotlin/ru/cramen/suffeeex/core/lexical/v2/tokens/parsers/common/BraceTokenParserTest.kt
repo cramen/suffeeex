@@ -1,8 +1,9 @@
-package ru.cramen.suffeeex.core.lexical.v2.tokens
+package ru.cramen.suffeeex.core.lexical.v2.tokens.parsers.common
 
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import ru.cramen.suffeeex.core.lexical.v2.Tokenizer
+import ru.cramen.suffeeex.core.lexical.v2.tokens.*
 import kotlin.test.Test
 
 internal class BraceTokenParserTest {
