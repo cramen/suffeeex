@@ -6,7 +6,7 @@ object StringTokenType: TokenType()
 
 object StringTokenParser: TokenParser() {
     override val priority: Int
-        get() = LOW_TOKEN_PRIORITY
+        get() = HIGH_TOKEN_PRIORITY
 
     override fun match(exp: String, position: Int): Token? {
         if (exp.substring(position, min(position + 1, exp.length) ) != "\"") return null
