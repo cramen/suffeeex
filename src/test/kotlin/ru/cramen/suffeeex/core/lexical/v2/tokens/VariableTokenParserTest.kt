@@ -1,7 +1,7 @@
 package ru.cramen.suffeeex.core.lexical.v2.tokens
 
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.Test
+import kotlin.test.Test
 
 
 internal class VariableTokenParserTest {
@@ -17,5 +17,4 @@ internal class VariableTokenParserTest {
         tp.match("\$foo1_bar2+10", 0) shouldBe Token(VariableTokenType, "\$foo1_bar2", 0)
         tp.match("11+\$foo1_bar2+10", 3) shouldBe Token(VariableTokenType, "\$foo1_bar2", 3)
     }
-
 }

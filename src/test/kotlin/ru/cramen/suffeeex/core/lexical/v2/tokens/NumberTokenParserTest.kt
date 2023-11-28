@@ -1,7 +1,7 @@
 package ru.cramen.suffeeex.core.lexical.v2.tokens
 
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.Test
+import kotlin.test.Test
 
 internal class NumberTokenParserTest {
 
