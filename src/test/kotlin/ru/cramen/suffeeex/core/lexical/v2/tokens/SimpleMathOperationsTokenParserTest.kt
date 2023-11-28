@@ -10,9 +10,9 @@ internal class SimpleMathOperationsTokenParserTest {
     @Test
     fun match() {
         val tokenizer = Tokenizer(listOf(SimpleMathOperationsTokenParser))
-        val tokens = tokenizer.tokenize("+-*/=%&and|or!not")
+        val tokens = tokenizer.tokenize("+-*/=%&|!")
 
-        tokens shouldHaveSize 12
+        tokens shouldHaveSize 9
         tokens shouldBe listOf(
             Token(PlusTokenType, "+", 0),
             Token(MinusTokenType, "-", 1),
@@ -21,11 +21,8 @@ internal class SimpleMathOperationsTokenParserTest {
             Token(EquelsTokenType, "=", 4),
             Token(PercentTokenType, "%", 5),
             Token(AndTokenType, "&", 6),
-            Token(AndTokenType, "and", 7),
-            Token(OrTokenType, "|", 10),
-            Token(OrTokenType, "or", 11),
-            Token(NotTokenType, "!", 13),
-            Token(NotTokenType, "not", 14),
+            Token(OrTokenType, "|", 7),
+            Token(NotTokenType, "!", 8),
         )
     }
 }

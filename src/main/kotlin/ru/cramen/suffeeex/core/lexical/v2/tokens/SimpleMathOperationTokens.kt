@@ -20,10 +20,7 @@ private val simpleMathOperationsTypesMap = mapOf(
     "=" to EquelsTokenType,
     "%" to PercentTokenType,
     "&" to AndTokenType,
-    "and" to AndTokenType,
     "|" to OrTokenType,
-    "or" to OrTokenType,
     "!" to NotTokenType,
-    "not" to NotTokenType,
 )
 object SimpleMathOperationsTokenParser: SimpleMultiTokenParser(simpleMathOperationsTypesMap, HIGH_TOKEN_PRIORITY)
