@@ -12,12 +12,12 @@ object StringTokenParser: TokenParser() {
         if (exp.substring(position, min(position + 1, exp.length) ) != "\"") return null
 
         var offset = position + 1
-        while(exp.substring(position + offset, position + offset + 1) != "\"" || exp[position + offset - 1] == '\\') {
+        while(exp[position + offset] != '\"' || exp[position + offset - 1] == '\\') {
             offset++
+            if (position + offset >= exp.length) return null
         }
         val string = exp.substring(position, position + offset + 1)
             .replace("\\\"", "\"")
         return Token(StringTokenType, string, position)
     }
-
 }

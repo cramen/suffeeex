@@ -10,6 +10,7 @@ internal class StringTokenParserTest {
         val tp = StringTokenParser
         tp.match("\"hello world\"", 0) shouldBe Token(StringTokenType, "\"hello world\"", 0)
         tp.match("\"hello \\\"world\"", 0) shouldBe Token(StringTokenType, "\"hello \"world\"", 0)
+        tp.match("\"hello", 0) shouldBe null
         tp.match("space\"hello \\\"world\"", 5) shouldBe Token(StringTokenType, "\"hello \"world\"", 5)
     }
 }
