@@ -23,4 +23,4 @@ private val simpleMathOperationsTypesMap = mapOf(
     "|" to OrTokenType,
     "!" to NotTokenType,
 )
-object SimpleMathOperationsTokenParser: SimpleMultiTokenParser(simpleMathOperationsTypesMap, HIGH_TOKEN_PRIORITY)
+object SimpleMathOperationsTokenParser: SimpleMultiTokenParser(simpleMathOperationsTypesMap, MEDIUM_TOKEN_PRIORITY)

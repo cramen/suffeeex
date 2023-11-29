@@ -10,4 +10,4 @@ private val delimiterTypesMap = mapOf(
     "\n" to SpaceTokenType,
     "," to CommaTokenType,
 )
-object DelimiterTokenParser: SimpleMultiTokenParser(delimiterTypesMap, HIGH_TOKEN_PRIORITY)
+object DelimiterTokenParser: SimpleMultiTokenParser(delimiterTypesMap, MEDIUM_TOKEN_PRIORITY)

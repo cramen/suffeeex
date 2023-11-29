@@ -16,8 +16,8 @@ abstract class TokenParser {
 }
 
 open class SimpleTokenParser(
-    val type: TokenType,
-    val tokenString: String,
+    open val type: TokenType,
+    open val tokenString: String,
     override val priority: Int = LOW_TOKEN_PRIORITY,
 ): TokenParser() {
     override fun match(exp: String, position: Int): Token? {
@@ -55,8 +55,8 @@ open class SimpleMultiTokenParser(
 }
 
 open class RegexpTokenParser(
-    val type: TokenType,
-    val regExp: Regex,
+    open val type: TokenType,
+    open val regExp: Regex,
     override val priority: Int = LOW_TOKEN_PRIORITY,
 ): TokenParser() {
     override fun match(exp: String, position: Int): Token? {

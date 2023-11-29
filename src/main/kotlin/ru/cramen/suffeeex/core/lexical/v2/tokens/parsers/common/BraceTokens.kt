@@ -19,4 +19,4 @@ private val braceTokenTypesMap = mapOf(
     "<" to LeftTriangleBraceTokenType,
     ">" to RightTriangleBraceTokenType,
 )
-object BraceTokenParser: SimpleMultiTokenParser(braceTokenTypesMap, HIGH_TOKEN_PRIORITY)
+object BraceTokenParser: SimpleMultiTokenParser(braceTokenTypesMap, MEDIUM_TOKEN_PRIORITY)

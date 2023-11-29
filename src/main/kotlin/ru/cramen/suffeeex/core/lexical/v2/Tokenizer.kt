@@ -11,9 +11,12 @@ class Tokenizer(tokenParsers: Collection<TokenParser>) {
         var position = 0
         val result = mutableListOf<Token>()
         while (position < str.length) {
-            val tokens = byPriority.asSequence().mapNotNull { (_, tokenParsers) ->
-                tokenParsers.mapNotNull { it.match(str, position) }
-            }.firstOrNull()
+            val tokens = priorities.asSequence()
+                .mapNotNull { byPriority[it] }
+                .mapNotNull { tokenParsers ->
+                    tokenParsers.mapNotNull { it.match(str, position) }.takeIf { it.isNotEmpty() }
+                }
+                .firstOrNull()
 
             if (tokens.isNullOrEmpty()) {
                 throw TokenizerException("unknown token on position $position")

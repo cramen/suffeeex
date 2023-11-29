@@ -15,7 +15,7 @@ internal class TokenizerTest {
         val tp1 = SimpleTokenParser(tokenType, "foo", 1)
         val tp2 = SimpleTokenParser(tokenType, "bar", 1)
         val tp3 = SimpleTokenParser(tokenType, "foobar", 0)
-        val tokenizer = Tokenizer(listOf(tp1, tp2, tp3))
+        val tokenizer = Tokenizer(listOf(tp3, tp2, tp1))
 
         val expected = listOf(
             Token(tokenType, "foo", 0),
@@ -29,7 +29,7 @@ internal class TokenizerTest {
         val tp1 = SimpleTokenParser(tokenType, "a")
         val tp2 = SimpleTokenParser(tokenType, "ab")
         val tp3 = SimpleTokenParser(tokenType, "abc")
-        val tokenizer = Tokenizer(listOf(tp1, tp2, tp3))
+        val tokenizer = Tokenizer(listOf(tp3, tp2, tp1))
 
         val expected = listOf(Token(tokenType, "abc", 0))
         tokenizer.tokenize("abc") shouldBe expected
