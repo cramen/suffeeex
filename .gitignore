@@ -27,3 +27,5 @@ replay_pid*
 .idea
 build
 .gradle
+# Gradle wrapper jar must be committed
+!gradle/wrapper/gradle-wrapper.jar
