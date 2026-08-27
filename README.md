@@ -63,11 +63,29 @@ paths, or use specialized compilation and skip the context entirely.
 
 ## Getting it
 
-Not published to a Maven repository yet — build from source:
+From Maven Central:
+
+```kotlin
+implementation("io.github.cramen:suffeeex:0.1.0")   // Gradle (Kotlin DSL)
+```
+
+```groovy
+implementation 'io.github.cramen:suffeeex:0.1.0'    // Gradle (Groovy)
+```
+
+```xml
+<dependency>
+  <groupId>io.github.cramen</groupId>
+  <artifactId>suffeeex</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+Building from source still works:
 
 ```bash
-git clone <this repository> && cd suffeeex
-./gradlew build        # produces build/libs/suffeeex-0.1-SNAPSHOT.jar
+git clone https://github.com/cramen/suffeeex && cd suffeeex
+./gradlew build        # produces build/libs/suffeeex-0.1.0.jar
 ```
 
 Requires a JDK 17+ runtime.
@@ -364,6 +382,48 @@ system Gradle is incompatible with the Kotlin plugin version. The Gradle
 daemon itself must run on JDK 21 or older (Gradle 7.5.1 and kapt do not
 support newer JDKs); the compiled library targets JVM 17 and runs on any
 JDK 17+.
+
+### Publishing (maintainer)
+
+The build publishes to Maven Central through the Central Publisher Portal's
+OSSRH Staging API compatibility endpoint (the vanniktech plugin version
+compatible with Gradle 7.5.1 predates native Portal support). One-time
+setup:
+
+1. Create an account at https://central.sonatype.com and verify the
+   `io.github.cramen` namespace (via GitHub).
+2. Generate a user token: Account → Generate User Token.
+3. Create a GPG key and publish it to a keyserver (e.g.
+   `gpg --keyserver keys.openpgp.org --send-keys <keyId>`).
+4. Put credentials in `~/.gradle/gradle.properties` (never in the repo):
+
+   ```properties
+   mavenCentralUsername=<portal token username>
+   mavenCentralPassword=<portal token password>
+   # either a key ring:
+   signing.keyId=<short key id>
+   signing.password=<key passphrase>
+   signing.secretKeyRingFile=/path/to/secring.gpg
+   # or an in-memory armored key:
+   # signing.keyId=<short key id>
+   # signing.password=<key passphrase>
+   # signing.secretKey=<ascii-armored private key>
+   ```
+
+   Signing activates automatically when the `signing.*` properties are
+   present; without them every task (including `publishToMavenLocal`)
+   works unsigned.
+
+5. Release:
+
+   ```bash
+   ./gradlew publishAllPublicationsToMavenCentralRepository
+   ```
+
+   The plugin uploads the artifacts and closes the staging repository at
+   the end of the build; closing transfers the deployment to the Central
+   Portal, where it appears under https://central.sonatype.com/publishing —
+   review it there and click **Publish** (or **Drop**).
 
 ## License
 

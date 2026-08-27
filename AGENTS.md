@@ -20,8 +20,10 @@ A Kotlin/JVM library for parsing and evaluating expressions.
 ## Tech stack
 
 - Kotlin 1.9.10, JVM target 17, Gradle (Kotlin DSL), `java-library` +
-  `maven-publish`
-- Group `ru.cramen`, root package `ru.cramen.suffeeex`
+  `maven-publish` + `com.vanniktech.maven.publish` 0.25.3 (newest release
+  that runs on Gradle 7.5.1)
+- Published as `io.github.cramen:suffeeex` on Maven Central; root package
+  stays `ru.cramen.suffeeex` (groupId ≠ package)
 - Tests: `kotlin("test")` on JUnit platform + Kotest assertions
   (`io.kotest:kotest-assertions-core-jvm`)
 - Bytecode generation: ASM 9.7 (`org.ow2.asm:asm`) for the AsmBackend
@@ -34,6 +36,14 @@ A Kotlin/JVM library for parsing and evaluating expressions.
   `src/jmh/kotlin/ru/cramen/suffeeex/benchmark/`; results land in
   `build/results/jmh/results.txt` (and stdout). Short run configured:
   fork=1, 3 warmup + 5 measurement iterations.
+- Publish (maintainer): `./gradlew publishAllPublicationsToMavenCentralRepository`
+  — uploads to the Central Portal via its OSSRH Staging API compatibility
+  endpoint (`SonatypeHost("https://ossrh-staging-api.central.sonatype.com")`
+  in build.gradle.kts; native `CENTRAL_PORTAL` support needs plugin 0.28+,
+  which needs Gradle 8.1), then finish the release in the Portal UI. Needs
+  `mavenCentralUsername`/`mavenCentralPassword` (portal user token) and
+  `signing.*` GPG properties in `~/.gradle/gradle.properties`; without
+  `signing.*` everything (incl. `publishToMavenLocal`) works unsigned.
 
 Build notes:
 
