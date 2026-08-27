@@ -37,78 +37,86 @@ interface TypeEmission {
 }
 
 /**
- * Registry of [TypeEmission]s, pre-populated with the built-in types
- * (Int, Long, Float, Double, Boolean, String). Unregistered types get an
- * automatic reference-type fallback from [of].
+ * Registry of [TypeEmission]s. An instance resolves a type through its own
+ * registrations, then the [parent]'s, then an automatic reference-type
+ * fallback — so an extension registers its types into the registry of its
+ * own `ExtensionRegistry` without affecting other compilers. [DEFAULT]
+ * holds the built-in types (Int, Long, Float, Double, Boolean, String) and
+ * is the parent of every `ExtensionRegistry`'s registry.
  */
-object TypeEmissions {
+class TypeEmissions(private val parent: TypeEmissions? = null) {
     private val registered = ConcurrentHashMap<KClass<*>, TypeEmission>()
-
-    init {
-        register(primitive(Int::class, "I", StackCategory.INT, "java/lang/Integer", "intValue"))
-        register(primitive(Long::class, "J", StackCategory.LONG, "java/lang/Long", "longValue"))
-        register(primitive(Float::class, "F", StackCategory.FLOAT, "java/lang/Float", "floatValue"))
-        register(primitive(Double::class, "D", StackCategory.DOUBLE, "java/lang/Double", "doubleValue"))
-        // booleans are int 0/1 on the stack, and LDC cannot push them
-        register(object : TypeEmission {
-            override val type = Boolean::class
-            override val descriptor = "Z"
-            override val category = StackCategory.INT
-            override val wrapperInternalName = "java/lang/Boolean"
-            override val unboxMethod = "booleanValue"
-            override fun pushConstant(emission: Emission, value: Any) {
-                emission.ldc(if (value as Boolean) 1 else 0)
-            }
-        })
-        register(reference(String::class))
-    }
 
     fun register(support: TypeEmission) {
         registered[support.type] = support
     }
 
     /**
-     * The registered [TypeEmission] for [type], or an automatic
-     * reference-type fallback: descriptor "L<internal name>;", category
-     * [StackCategory.REFERENCE], no wrapper; [TypeEmission.pushConstant]
-     * throws a clear [ExpressionException].
+     * The registered [TypeEmission] for [type]: own registrations first,
+     * then the [parent] chain, then an automatic reference-type fallback
+     * (descriptor "L<internal name>;", category [StackCategory.REFERENCE],
+     * no wrapper; [TypeEmission.pushConstant] throws a clear
+     * [ExpressionException]).
      */
-    fun of(type: KClass<*>): TypeEmission = registered.getOrElse(type) { referenceFallback(type) }
+    fun of(type: KClass<*>): TypeEmission =
+        registered[type] ?: parent?.of(type) ?: referenceFallback(type)
 
-    private fun primitive(
-        type: KClass<*>,
-        descriptor: String,
-        category: StackCategory,
-        wrapperInternalName: String,
-        unboxMethod: String,
-    ) = object : TypeEmission {
-        override val type = type
-        override val descriptor = descriptor
-        override val category = category
-        override val wrapperInternalName = wrapperInternalName
-        override val unboxMethod = unboxMethod
-    }
+    companion object {
+        /** The built-in types: Int, Long, Float, Double, Boolean, String. */
+        val DEFAULT: TypeEmissions = TypeEmissions().apply {
+            register(primitive(Int::class, "I", StackCategory.INT, "java/lang/Integer", "intValue"))
+            register(primitive(Long::class, "J", StackCategory.LONG, "java/lang/Long", "longValue"))
+            register(primitive(Float::class, "F", StackCategory.FLOAT, "java/lang/Float", "floatValue"))
+            register(primitive(Double::class, "D", StackCategory.DOUBLE, "java/lang/Double", "doubleValue"))
+            // booleans are int 0/1 on the stack, and LDC cannot push them
+            register(object : TypeEmission {
+                override val type = Boolean::class
+                override val descriptor = "Z"
+                override val category = StackCategory.INT
+                override val wrapperInternalName = "java/lang/Boolean"
+                override val unboxMethod = "booleanValue"
+                override fun pushConstant(emission: Emission, value: Any) {
+                    emission.ldc(if (value as Boolean) 1 else 0)
+                }
+            })
+            register(reference(String::class))
+        }
 
-    private fun reference(type: KClass<*>) = object : TypeEmission {
-        override val type = type
-        override val descriptor = "L" + type.java.name.replace('.', '/') + ";"
-        override val category = StackCategory.REFERENCE
-        override val wrapperInternalName: String? = null
-        override val unboxMethod: String? = null
-    }
+        private fun primitive(
+            type: KClass<*>,
+            descriptor: String,
+            category: StackCategory,
+            wrapperInternalName: String,
+            unboxMethod: String,
+        ) = object : TypeEmission {
+            override val type = type
+            override val descriptor = descriptor
+            override val category = category
+            override val wrapperInternalName = wrapperInternalName
+            override val unboxMethod = unboxMethod
+        }
 
-    private fun referenceFallback(type: KClass<*>) = object : TypeEmission {
-        private val delegate = reference(type)
-        override val type = type
-        override val descriptor = delegate.descriptor
-        override val category = delegate.category
-        override val wrapperInternalName: String? = null
-        override val unboxMethod: String? = null
-        override fun pushConstant(emission: Emission, value: Any) {
-            throw ExpressionException(
-                "cannot push a constant of type ${type.simpleName}:" +
-                    " register a TypeEmission for it (TypeEmissions.register)"
-            )
+        private fun reference(type: KClass<*>) = object : TypeEmission {
+            override val type = type
+            override val descriptor = "L" + type.java.name.replace('.', '/') + ";"
+            override val category = StackCategory.REFERENCE
+            override val wrapperInternalName: String? = null
+            override val unboxMethod: String? = null
+        }
+
+        private fun referenceFallback(type: KClass<*>) = object : TypeEmission {
+            private val delegate = reference(type)
+            override val type = type
+            override val descriptor = delegate.descriptor
+            override val category = delegate.category
+            override val wrapperInternalName: String? = null
+            override val unboxMethod: String? = null
+            override fun pushConstant(emission: Emission, value: Any) {
+                throw ExpressionException(
+                    "cannot push a constant of type ${type.simpleName}:" +
+                        " register a TypeEmission for it (ExtensionRegistry.registerTypeEmission)"
+                )
+            }
         }
     }
 }

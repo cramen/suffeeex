@@ -72,24 +72,30 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   `EmissionLabel` marker) and locals (`newLocal`/`loadLocal`/`storeLocal`).
 - `core/node/TypeEmission.kt` — the type registry: `TypeEmission`
   (descriptor, `StackCategory`, wrapper/unbox, `pushConstant`) and
-  `TypeEmissions` (pre-registered Int/Long/Float/Double/Boolean/String;
-  `register` adds new types, `of` falls back to an automatic
-  reference-type emission for unregistered types). All bytecode type
-  knowledge (descriptors, boxing, load/store/return opcodes) derives from
-  this registry — the numeric-op offset equals `StackCategory.ordinal`.
+  `TypeEmissions` — an instance registry scoped by construction:
+  `TypeEmissions(parent)` resolves own registrations, then the parent's,
+  then an automatic reference-type fallback for unregistered types.
+  `TypeEmissions.DEFAULT` (companion) holds the pre-registered
+  Int/Long/Float/Double/Boolean/String. Each `ExtensionRegistry` owns a
+  `TypeEmissions(DEFAULT)` (`typeEmissions`; extensions add types via
+  `registerTypeEmission`), so one compiler's types never leak into
+  another. All bytecode type knowledge (descriptors, boxing,
+  load/store/return opcodes) derives from this registry — the numeric-op
+  offset equals `StackCategory.ordinal`.
 - `core/node/DifferentiableNode.kt` — symbolic differentiation hook:
   nodes implement `DifferentiableNode.differentiate(by)`; the rules live
   in the node classes, so new extensions implement it to become
   differentiable (`differentiateOrThrow` errors clearly otherwise).
-- `core/backend/` — `ExpressionBackend.compile(root: TypedNode)`,
-  `CompositionBackend` (`root.build()`), and `asm/AsmBackend` (generates a
+- `core/backend/` — `ExpressionBackend.compile(root: TypedNode, types:
+  TypeEmissions = TypeEmissions.DEFAULT)`, `CompositionBackend`
+  (`root.build()`, ignores `types`), and `asm/AsmBackend` (generates a
   bytecode class per expression via `emit(emission)`, each defined in its
   own child classloader so it unloads with the expression). The default
   backend is `AsmBackend`. `SpecializedBackend` (`compile(root, target:
-  KClass<*>)`, implemented by both backends) compiles against a user fun
-  interface whose single abstract method's parameters are the variables —
-  direct parameter loads in ASM, a `Proxy` over an index-based context in
-  composition.
+  KClass<*>, types = DEFAULT)`, implemented by both backends) compiles
+  against a user fun interface whose single abstract method's parameters
+  are the variables — direct parameter loads in ASM, a `Proxy` over an
+  index-based context in composition.
 - `core/token/` — tokenizer + token parsers (`TokenParser`,
   `SimpleTokenParser`, `SimpleMultiTokenParser`, `RegexpTokenParser`,
   priorities in `Priorities.kt`).
@@ -108,12 +114,14 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   returning a `T` implementing the target fun interface; it validates the
   interface (exactly one abstract method, parameter names cover exactly the
   variables used, return type matches, wrappers accepted). Both `compile`
-  variants are cached (`ConcurrentHashMap` keyed by
+  variants are cached (`ConcurrentHashMap` of `SoftReference` keyed by
   source + varTypes/target + backend): the same key returns the same
-  instance — compiled expressions are stateless. `parseTree(source,
-  varTypes)` exposes the raw tokenize→parse pipeline and
-  `compileTree(root, backend)` compiles an existing tree; neither is
-  cached.
+  instance while it stays reachable — compiled expressions are stateless —
+  and an entry cleared by the GC under memory pressure is recomputed on
+  the next compile. `parseTree(source, varTypes)` exposes the raw
+  tokenize→parse pipeline and `compileTree(root, backend)` compiles an
+  existing tree; neither is cached. All compile paths pass the registry's
+  scoped `typeEmissions` to the backend.
 - `ext/math/` — `number` (typed literals, `NumberLiteralNode`), `operator`
   (same-type arithmetic, `BinaryArithmeticNode` + `NegationNode`),
   `bracket` (`( ) ,`), `function` (`ConvertNumericNode`, `MathFunctionNode`;

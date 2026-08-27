@@ -8,6 +8,7 @@ import ru.cramen.suffeeex.ALL_BACKENDS
 import ru.cramen.suffeeex.core.Expression
 import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
+import ru.cramen.suffeeex.core.node.TypeEmissions
 import ru.cramen.suffeeex.core.node.TypedNode
 import ru.cramen.suffeeex.ext.math.MathSyntax
 import kotlin.test.Test
@@ -189,7 +190,7 @@ internal class SpecializedCompileTest {
     @Test
     fun `backend without specialized support is an error`() {
         val plainBackend = object : ExpressionBackend {
-            override fun compile(root: TypedNode): Expression = root.build()
+            override fun compile(root: TypedNode, types: TypeEmissions): Expression = root.build()
         }
         val exception = shouldThrow<ExpressionException> {
             compiler.compile("\$a + \$b", IntBinOp::class, plainBackend)

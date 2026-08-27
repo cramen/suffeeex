@@ -172,8 +172,10 @@ static typing rules, so behavior (results and compile errors) is identical;
 both are exercised by the same test suite.
 
 Compilation results are cached per (source, variable types or target
-interface, backend): compiling the same expression again returns the same
-stateless instance. In the ASM backend every generated class is defined in
+interface, backend) through soft references: compiling the same expression
+again returns the same stateless instance while it is reachable, and an
+entry dropped by the garbage collector under memory pressure is simply
+recompiled on demand. In the ASM backend every generated class is defined in
 its own classloader, so an expression that is no longer referenced can be
 unloaded by the garbage collector — dynamically compiled expressions do not
 leak metaspace.
@@ -280,6 +282,9 @@ You can hook in at three levels:
    New types plug in via the `TypeEmissions` registry: a `TypeEmission`
    describes the JVM descriptor, stack category, boxing and constant
    pushing, and unregistered reference types get an automatic fallback.
+   The built-in `compare` and arithmetic emissions cover primitive types;
+   reference types express their operations via `invokeVirtual` /
+   `invokeStatic` (see the BigDecimal example).
    See `src/test/kotlin/ru/cramen/suffeeex/extensibility/` for complete
    worked examples — a loop extension and a BigDecimal type extension.
 

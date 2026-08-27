@@ -1,6 +1,7 @@
 package ru.cramen.suffeeex.core.backend
 
 import ru.cramen.suffeeex.core.ExpressionException
+import ru.cramen.suffeeex.core.node.TypeEmissions
 import ru.cramen.suffeeex.core.node.TypedNode
 import java.lang.reflect.Modifier
 import kotlin.reflect.KClass
@@ -14,7 +15,7 @@ import kotlin.reflect.jvm.javaMethod
  * takes the expression variables as its parameters.
  */
 interface SpecializedBackend {
-    fun compile(root: TypedNode, target: KClass<*>): Any
+    fun compile(root: TypedNode, target: KClass<*>, types: TypeEmissions = TypeEmissions.DEFAULT): Any
 }
 
 internal class SpecializedParameter(val name: String, val type: KClass<*>, val slot: Int)

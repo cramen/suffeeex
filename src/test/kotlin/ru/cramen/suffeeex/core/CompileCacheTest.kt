@@ -34,6 +34,16 @@ internal class CompileCacheTest {
     }
 
     @Test
+    fun `soft-referenced cache returns the same instance while the caller holds it`() {
+        // the cache holds values through soft references; while a strong
+        // reference is held (and memory is fine), the same key must resolve
+        // to the same instance — GC eviction is not forced here
+        val held = compiler.compile("40 + 2")
+        repeat(5) { compiler.compile("40 + 2") shouldBeSameInstanceAs held }
+        held.eval(MapEvaluationContext(emptyMap())) shouldBe 42
+    }
+
+    @Test
     fun `different varTypes produce different instances`() {
         val intVersion = compiler.compile("\$x + \$x", mapOf("x" to Int::class))
         val longVersion = compiler.compile("\$x + \$x", mapOf("x" to Long::class))

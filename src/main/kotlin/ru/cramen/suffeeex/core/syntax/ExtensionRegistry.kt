@@ -1,5 +1,7 @@
 package ru.cramen.suffeeex.core.syntax
 
+import ru.cramen.suffeeex.core.node.TypeEmission
+import ru.cramen.suffeeex.core.node.TypeEmissions
 import ru.cramen.suffeeex.core.token.TokenParser
 import ru.cramen.suffeeex.core.token.TokenType
 
@@ -9,6 +11,13 @@ fun interface SyntaxExtension {
 
 class ExtensionRegistry {
     val tokenParsers = mutableListOf<TokenParser>()
+
+    /**
+     * Type emissions visible to expressions compiled through this registry,
+     * falling back to the built-in types. Extensions register their types
+     * here via [registerTypeEmission]; other compilers are unaffected.
+     */
+    val typeEmissions = TypeEmissions(TypeEmissions.DEFAULT)
 
     private val literals = mutableMapOf<TokenType, LiteralParser>()
     private val prefixOperators = mutableMapOf<TokenType, PrefixOperatorParser>()
@@ -26,6 +35,10 @@ class ExtensionRegistry {
 
     fun registerTokenParser(parser: TokenParser) {
         tokenParsers += parser
+    }
+
+    fun registerTypeEmission(support: TypeEmission) {
+        typeEmissions.register(support)
     }
 
     fun registerLiteral(parser: LiteralParser) {

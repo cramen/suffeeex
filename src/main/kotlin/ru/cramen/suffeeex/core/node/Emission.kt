@@ -32,7 +32,16 @@ interface Emission {
 
     fun invokeMath(name: String, argTypes: List<KClass<*>>, resultType: KClass<*>)
 
-    /** Pops two operands of [type], pushes Boolean (0/1). */
+    /**
+     * Pops two operands of [type], pushes Boolean (0/1).
+     *
+     * Primitive/numeric stack categories only (INT, LONG, FLOAT, DOUBLE);
+     * [StackCategory.REFERENCE] is rejected with an [ExpressionException].
+     * Custom reference types express comparisons via [invokeVirtual] /
+     * [invokeStatic] — see the BigDecimal extensibility test
+     * (`src/test/kotlin/ru/cramen/suffeeex/extensibility/BigDecimalTypeTest.kt`)
+     * for a worked example.
+     */
     fun compare(op: CompareOp, type: KClass<*>)
 
     /**

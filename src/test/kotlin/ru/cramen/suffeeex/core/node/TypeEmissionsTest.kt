@@ -4,6 +4,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import ru.cramen.suffeeex.core.ExpressionException
 import java.lang.reflect.Proxy
 import java.math.BigDecimal
@@ -19,21 +20,21 @@ internal class TypeEmissionsTest {
 
     @Test
     fun `built-in types are pre-registered`() {
-        TypeEmissions.of(Int::class).descriptor shouldBe "I"
-        TypeEmissions.of(Int::class).category shouldBe StackCategory.INT
-        TypeEmissions.of(Int::class).wrapperInternalName shouldBe "java/lang/Integer"
-        TypeEmissions.of(Long::class).category shouldBe StackCategory.LONG
-        TypeEmissions.of(Double::class).descriptor shouldBe "D"
-        TypeEmissions.of(Boolean::class).descriptor shouldBe "Z"
-        TypeEmissions.of(Boolean::class).category shouldBe StackCategory.INT
-        TypeEmissions.of(String::class).descriptor shouldBe "Ljava/lang/String;"
-        TypeEmissions.of(String::class).category shouldBe StackCategory.REFERENCE
-        TypeEmissions.of(String::class).wrapperInternalName shouldBe null
+        TypeEmissions.DEFAULT.of(Int::class).descriptor shouldBe "I"
+        TypeEmissions.DEFAULT.of(Int::class).category shouldBe StackCategory.INT
+        TypeEmissions.DEFAULT.of(Int::class).wrapperInternalName shouldBe "java/lang/Integer"
+        TypeEmissions.DEFAULT.of(Long::class).category shouldBe StackCategory.LONG
+        TypeEmissions.DEFAULT.of(Double::class).descriptor shouldBe "D"
+        TypeEmissions.DEFAULT.of(Boolean::class).descriptor shouldBe "Z"
+        TypeEmissions.DEFAULT.of(Boolean::class).category shouldBe StackCategory.INT
+        TypeEmissions.DEFAULT.of(String::class).descriptor shouldBe "Ljava/lang/String;"
+        TypeEmissions.DEFAULT.of(String::class).category shouldBe StackCategory.REFERENCE
+        TypeEmissions.DEFAULT.of(String::class).wrapperInternalName shouldBe null
     }
 
     @Test
     fun `unregistered type gets a reference-type fallback`() {
-        val fallback = TypeEmissions.of(BigDecimal::class)
+        val fallback = TypeEmissions.DEFAULT.of(BigDecimal::class)
         fallback.descriptor shouldBe "Ljava/math/BigDecimal;"
         fallback.category shouldBe StackCategory.REFERENCE
         fallback.wrapperInternalName shouldBe null
@@ -43,24 +44,36 @@ internal class TypeEmissionsTest {
     @Test
     fun `fallback cannot push constants`() {
         val exception = shouldThrow<ExpressionException> {
-            TypeEmissions.of(BigDecimal::class).pushConstant(anyEmission, BigDecimal.ONE)
+            TypeEmissions.DEFAULT.of(BigDecimal::class).pushConstant(anyEmission, BigDecimal.ONE)
         }
         exception.message shouldContain "BigDecimal"
-        exception.message shouldContain "TypeEmissions.register"
+        exception.message shouldContain "registerTypeEmission"
     }
 
     private class CustomType
 
+    private val customEmission = object : TypeEmission {
+        override val type = CustomType::class
+        override val descriptor = "Lru/cramen/suffeeex/core/node/TypeEmissionsTest\$CustomType;"
+        override val category = StackCategory.REFERENCE
+        override val wrapperInternalName: String? = null
+        override val unboxMethod: String? = null
+    }
+
     @Test
     fun `registered emission replaces the fallback`() {
-        val custom = object : TypeEmission {
-            override val type = CustomType::class
-            override val descriptor = "Lru/cramen/suffeeex/core/node/TypeEmissionsTest\$CustomType;"
-            override val category = StackCategory.REFERENCE
-            override val wrapperInternalName: String? = null
-            override val unboxMethod: String? = null
-        }
-        TypeEmissions.register(custom)
-        TypeEmissions.of(CustomType::class) shouldBeSameInstanceAs custom
+        val registry = TypeEmissions(TypeEmissions.DEFAULT)
+        registry.register(customEmission)
+        registry.of(CustomType::class) shouldBeSameInstanceAs customEmission
+    }
+
+    @Test
+    fun `registrations are scoped to the instance`() {
+        val registry = TypeEmissions(TypeEmissions.DEFAULT)
+        registry.register(customEmission)
+        // the parent (built-in defaults) stays untouched...
+        TypeEmissions.DEFAULT.of(CustomType::class) shouldNotBeSameInstanceAs customEmission
+        // ...while its registrations are visible through the child
+        registry.of(Int::class) shouldBeSameInstanceAs TypeEmissions.DEFAULT.of(Int::class)
     }
 }

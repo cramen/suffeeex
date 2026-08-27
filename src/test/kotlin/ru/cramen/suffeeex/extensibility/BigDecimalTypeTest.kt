@@ -1,16 +1,19 @@
 package ru.cramen.suffeeex.extensibility
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import ru.cramen.suffeeex.ALL_BACKENDS
 import ru.cramen.suffeeex.core.Expression
 import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
 import ru.cramen.suffeeex.core.MapEvaluationContext
+import ru.cramen.suffeeex.core.backend.CompositionBackend
 import ru.cramen.suffeeex.core.backend.ExpressionBackend
+import ru.cramen.suffeeex.core.backend.asm.AsmBackend
 import ru.cramen.suffeeex.core.node.Emission
 import ru.cramen.suffeeex.core.node.StackCategory
 import ru.cramen.suffeeex.core.node.TypeEmission
-import ru.cramen.suffeeex.core.node.TypeEmissions
 import ru.cramen.suffeeex.core.node.TypedNode
 import ru.cramen.suffeeex.core.syntax.ExtensionRegistry
 import ru.cramen.suffeeex.core.syntax.InfixOperatorParser
@@ -71,7 +74,8 @@ class BigDecimalAddNode(val left: TypedNode, val right: TypedNode) : TypedNode {
 object BigDecimalExtension : SyntaxExtension {
     override fun register(registry: ExtensionRegistry) {
         // BigDecimal constants cannot go through LDC: construct them from their string form.
-        TypeEmissions.register(object : TypeEmission {
+        // Scoped to this registry: other compilers keep the reference-type fallback.
+        registry.registerTypeEmission(object : TypeEmission {
             override val type = BigDecimal::class
             override val descriptor = "Ljava/math/BigDecimal;"
             override val category = StackCategory.REFERENCE
@@ -132,5 +136,28 @@ internal class BigDecimalTypeTest {
         for ((_, backend) in ALL_BACKENDS) {
             eval("2+3*4", backend) shouldBe 14
         }
+    }
+
+    @Test
+    fun `a compiler without the extension cannot parse bigdecimal literals`() {
+        val plain = ExpressionCompiler(NumberExtension, ArithmeticExtension)
+        shouldThrow<ExpressionException> {
+            plain.compile("1.5bd")
+        }
+    }
+
+    @Test
+    fun `the bigdecimal type emission does not leak into other compilers`() {
+        val plain = ExpressionCompiler(NumberExtension, ArithmeticExtension)
+        // the tree comes from the extension compiler; a compiler whose
+        // registry lacks the BigDecimal emission falls back to the reference
+        // type emission, which cannot push constants on the asm backend
+        val tree = compiler.parseTree("1.5bd")
+        plain.compileTree(tree, CompositionBackend)
+            .eval(MapEvaluationContext(emptyMap())) shouldBe BigDecimal("1.5")
+        val exception = shouldThrow<ExpressionException> {
+            plain.compileTree(tree, AsmBackend)
+        }
+        exception.message shouldContain "BigDecimal"
     }
 }

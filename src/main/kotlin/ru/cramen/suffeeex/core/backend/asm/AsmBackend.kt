@@ -43,7 +43,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
             defineClass(binaryName, bytecode, 0, bytecode.size)
     }
 
-    override fun compile(root: TypedNode): Expression {
+    override fun compile(root: TypedNode, types: TypeEmissions): Expression {
         val binaryName = "ru.cramen.suffeeex.generated.CompiledExpression${counter.getAndIncrement()}"
 
         val writer = classHeader(binaryName, arrayOf("ru/cramen/suffeeex/core/Expression"))
@@ -57,7 +57,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
         ).apply {
             visitCode()
             // local slots: 0 = this, 1 = context
-            val emission = AsmEmission(this, nextLocalSlot = 2)
+            val emission = AsmEmission(this, types, nextLocalSlot = 2)
             emission.push(root)
             emission.box(root.type)
             visitInsn(Opcodes.ARETURN)
@@ -71,30 +71,30 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
             .newInstance() as Expression
     }
 
-    override fun compile(root: TypedNode, target: KClass<*>): Any {
+    override fun compile(root: TypedNode, target: KClass<*>, types: TypeEmissions): Any {
         val signature = specializedSignature(target)
         val binaryName = "ru.cramen.suffeeex.generated.SpecializedExpression${counter.getAndIncrement()}"
 
         val writer = classHeader(binaryName, arrayOf(target.java.name.replace('.', '/')))
 
-        val methodDescriptor = signature.parameters.joinToString("", "(", ")") { descriptor(it.type) } +
-            if (signature.referenceReturn) referenceDescriptor(signature.returnType)
-            else descriptor(signature.returnType)
+        val methodDescriptor = signature.parameters.joinToString("", "(", ")") { descriptor(types, it.type) } +
+            if (signature.referenceReturn) referenceDescriptor(types, signature.returnType)
+            else descriptor(types, signature.returnType)
 
         writer.visitMethod(Opcodes.ACC_PUBLIC, signature.methodName, methodDescriptor, null, null).apply {
             visitCode()
             val variableSlots = signature.parameters.associate { it.name to it.slot }
             // locals are allocated after this + the parameters
             val nextLocalSlot = signature.parameters.lastOrNull()
-                ?.let { it.slot + slotSize(it.type) }
+                ?.let { it.slot + slotSize(types, it.type) }
                 ?: 1
-            val emission = AsmEmission(this, variableSlots, nextLocalSlot)
+            val emission = AsmEmission(this, types, variableSlots, nextLocalSlot)
             emission.push(root)
             if (signature.referenceReturn) {
                 emission.box(root.type)
                 visitInsn(Opcodes.ARETURN)
             } else {
-                visitInsn(returnOpcode(root.type))
+                visitInsn(returnOpcode(types, root.type))
             }
             visitMaxs(0, 0)
             visitEnd()
@@ -131,6 +131,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
 
     private class AsmEmission(
         private val mv: MethodVisitor,
+        private val types: TypeEmissions,
         // null: expression mode (variables load from the EvaluationContext);
         // non-null: specialized mode (variables must be method parameters)
         private val variableSlots: Map<String, Int>? = null,
@@ -138,7 +139,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
         private var nextLocalSlot: Int,
     ) : Emission {
         override fun constant(type: KClass<*>, value: Any) {
-            TypeEmissions.of(type).pushConstant(this, value)
+            types.of(type).pushConstant(this, value)
         }
 
         override fun ldc(value: Any) {
@@ -153,7 +154,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
                     ?: throw ExpressionException(
                         "variable '$name' is not a parameter of the specialized compile target"
                     )
-                mv.visitVarInsn(loadOpcode(type), slot)
+                mv.visitVarInsn(loadOpcode(types, type), slot)
                 return
             }
             // Minimal route: a missing value fails with a JVM NPE on unboxing,
@@ -167,7 +168,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
                 "(Ljava/lang/String;)Ljava/lang/Object;",
                 true,
             )
-            val support = TypeEmissions.of(type)
+            val support = types.of(type)
             val wrapper = support.wrapperInternalName
             if (wrapper != null) {
                 mv.visitTypeInsn(Opcodes.CHECKCAST, wrapper)
@@ -191,11 +192,11 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
                 NumericOp.DIV -> Opcodes.IDIV
                 NumericOp.REM -> Opcodes.IREM
             }
-            mv.visitInsn(base + numericOffset(type))
+            mv.visitInsn(base + numericOffset(types, type))
         }
 
         override fun numericNegate(type: KClass<*>) {
-            mv.visitInsn(Opcodes.INEG + numericOffset(type))
+            mv.visitInsn(Opcodes.INEG + numericOffset(types, type))
         }
 
         override fun convertNumeric(from: KClass<*>, to: KClass<*>) {
@@ -232,7 +233,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
         override fun compare(op: CompareOp, type: KClass<*>) {
             val trueLabel = Label()
             val endLabel = Label()
-            when (TypeEmissions.of(type).category) {
+            when (types.of(type).category) {
                 StackCategory.INT -> mv.visitJumpInsn(ifIcmpOpcode(op), trueLabel)
                 StackCategory.LONG -> {
                     mv.visitInsn(Opcodes.LCMP)
@@ -348,7 +349,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
                 Opcodes.INVOKESPECIAL,
                 internalName(type),
                 "<init>",
-                methodDescriptor(argTypes, null),
+                methodDescriptor(types, argTypes, null),
                 false,
             )
         }
@@ -363,7 +364,7 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
                 Opcodes.INVOKESTATIC,
                 internalName(owner),
                 name,
-                methodDescriptor(argTypes, resultType),
+                methodDescriptor(types, argTypes, resultType),
                 false,
             )
         }
@@ -378,13 +379,13 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
                 Opcodes.INVOKEVIRTUAL,
                 internalName(owner),
                 name,
-                methodDescriptor(argTypes, resultType),
+                methodDescriptor(types, argTypes, resultType),
                 false,
             )
         }
 
         override fun pop(type: KClass<*>) {
-            mv.visitInsn(if (slotSize(type) == 2) Opcodes.POP2 else Opcodes.POP)
+            mv.visitInsn(if (slotSize(types, type) == 2) Opcodes.POP2 else Opcodes.POP)
         }
 
         override fun newLabel(): EmissionLabel = AsmLabel(Label())
@@ -407,21 +408,21 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
 
         override fun newLocal(type: KClass<*>): Int {
             val slot = nextLocalSlot
-            nextLocalSlot += slotSize(type)
+            nextLocalSlot += slotSize(types, type)
             return slot
         }
 
         override fun loadLocal(slot: Int, type: KClass<*>) {
-            mv.visitVarInsn(loadOpcode(type), slot)
+            mv.visitVarInsn(loadOpcode(types, type), slot)
         }
 
         override fun storeLocal(slot: Int, type: KClass<*>) {
-            mv.visitVarInsn(storeOpcode(type), slot)
+            mv.visitVarInsn(storeOpcode(types, type), slot)
         }
 
         /** Boxes the primitive on top of the stack into its wrapper type. */
         fun box(type: KClass<*>) {
-            val support = TypeEmissions.of(type)
+            val support = types.of(type)
             val wrapper = support.wrapperInternalName ?: return // already a reference
             mv.visitMethodInsn(
                 Opcodes.INVOKESTATIC,
@@ -438,18 +439,19 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
     }
 }
 
-private fun descriptor(type: KClass<*>): String = TypeEmissions.of(type).descriptor
+private fun descriptor(types: TypeEmissions, type: KClass<*>): String = types.of(type).descriptor
 
 /** Reference (wrapper) descriptor used for return types declared boxed. */
-private fun referenceDescriptor(type: KClass<*>): String =
-    TypeEmissions.of(type).wrapperInternalName?.let { "L$it;" } ?: descriptor(type)
+private fun referenceDescriptor(types: TypeEmissions, type: KClass<*>): String =
+    types.of(type).wrapperInternalName?.let { "L$it;" } ?: descriptor(types, type)
 
 private fun internalName(type: KClass<*>): String = type.java.name.replace('.', '/')
 
-private fun methodDescriptor(argTypes: List<KClass<*>>, resultType: KClass<*>?): String =
-    argTypes.joinToString("", "(", ")") { descriptor(it) } + (resultType?.let(::descriptor) ?: "V")
+private fun methodDescriptor(types: TypeEmissions, argTypes: List<KClass<*>>, resultType: KClass<*>?): String =
+    argTypes.joinToString("", "(", ")") { descriptor(types, it) } +
+        (resultType?.let { descriptor(types, it) } ?: "V")
 
-private fun loadOpcode(type: KClass<*>): Int = when (TypeEmissions.of(type).category) {
+private fun loadOpcode(types: TypeEmissions, type: KClass<*>): Int = when (types.of(type).category) {
     StackCategory.INT -> Opcodes.ILOAD
     StackCategory.LONG -> Opcodes.LLOAD
     StackCategory.FLOAT -> Opcodes.FLOAD
@@ -457,7 +459,7 @@ private fun loadOpcode(type: KClass<*>): Int = when (TypeEmissions.of(type).cate
     StackCategory.REFERENCE -> Opcodes.ALOAD
 }
 
-private fun storeOpcode(type: KClass<*>): Int = when (TypeEmissions.of(type).category) {
+private fun storeOpcode(types: TypeEmissions, type: KClass<*>): Int = when (types.of(type).category) {
     StackCategory.INT -> Opcodes.ISTORE
     StackCategory.LONG -> Opcodes.LSTORE
     StackCategory.FLOAT -> Opcodes.FSTORE
@@ -465,7 +467,7 @@ private fun storeOpcode(type: KClass<*>): Int = when (TypeEmissions.of(type).cat
     StackCategory.REFERENCE -> Opcodes.ASTORE
 }
 
-private fun returnOpcode(type: KClass<*>): Int = when (TypeEmissions.of(type).category) {
+private fun returnOpcode(types: TypeEmissions, type: KClass<*>): Int = when (types.of(type).category) {
     StackCategory.INT -> Opcodes.IRETURN
     StackCategory.LONG -> Opcodes.LRETURN
     StackCategory.FLOAT -> Opcodes.FRETURN
@@ -474,7 +476,7 @@ private fun returnOpcode(type: KClass<*>): Int = when (TypeEmissions.of(type).ca
 }
 
 /** Local slots taken by a value of [type]: 2 for LONG/DOUBLE, else 1. */
-private fun slotSize(type: KClass<*>): Int = when (TypeEmissions.of(type).category) {
+private fun slotSize(types: TypeEmissions, type: KClass<*>): Int = when (types.of(type).category) {
     StackCategory.LONG, StackCategory.DOUBLE -> 2
     else -> 1
 }
@@ -501,8 +503,8 @@ private fun usesLessCmp(op: CompareOp): Boolean = op == CompareOp.GT || op == Co
 
 // Numeric opcodes order int, long, float, double consecutively, matching
 // the StackCategory ordinals.
-private fun numericOffset(type: KClass<*>): Int {
-    val category = TypeEmissions.of(type).category
+private fun numericOffset(types: TypeEmissions, type: KClass<*>): Int {
+    val category = types.of(type).category
     if (category == StackCategory.REFERENCE) {
         throw ExpressionException("type ${type.simpleName} is not numeric")
     }
