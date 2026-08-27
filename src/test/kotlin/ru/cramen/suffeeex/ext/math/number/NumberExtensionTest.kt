@@ -7,6 +7,7 @@ import ru.cramen.suffeeex.ALL_BACKENDS
 import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
 import ru.cramen.suffeeex.core.MapEvaluationContext
+import ru.cramen.suffeeex.core.node.differentiateOrThrow
 import kotlin.test.Test
 
 internal class NumberExtensionTest {
@@ -84,6 +85,18 @@ internal class NumberExtensionTest {
         for ((name, backend) in ALL_BACKENDS) {
             withClue(name) {
                 compiler.compile("  42  ", backend = backend).eval(context) shouldBe 42
+            }
+        }
+    }
+
+    @Test
+    fun `differentiating a literal yields a zero Double literal`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                val tree = compiler.parseTree("1.5")
+                val derivative = tree.differentiateOrThrow("x")
+                derivative.type shouldBe Double::class
+                compiler.compileTree(derivative, backend).eval(context) shouldBe 0.0
             }
         }
     }

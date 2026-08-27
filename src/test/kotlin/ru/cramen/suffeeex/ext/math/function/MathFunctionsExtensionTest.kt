@@ -3,14 +3,21 @@ package ru.cramen.suffeeex.ext.math.function
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import ru.cramen.suffeeex.ALL_BACKENDS
 import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
 import ru.cramen.suffeeex.core.MapEvaluationContext
 import ru.cramen.suffeeex.core.backend.ExpressionBackend
+import ru.cramen.suffeeex.core.node.differentiateOrThrow
+import ru.cramen.suffeeex.ext.math.MathSyntax
 import ru.cramen.suffeeex.ext.math.bracket.BracketExtension
 import ru.cramen.suffeeex.ext.math.number.NumberExtension
 import ru.cramen.suffeeex.ext.math.operator.ArithmeticExtension
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.sin
 import kotlin.test.Test
 
 internal class MathFunctionsExtensionTest {
@@ -146,6 +153,88 @@ internal class MathFunctionsExtensionTest {
     fun `throws on wrong arity`() {
         for ((_, backend) in ALL_BACKENDS) {
             shouldThrow<ExpressionException> { eval("sqrt(1.0, 2.0)", backend) }
+        }
+    }
+
+    private val mathCompiler = ExpressionCompiler(MathSyntax)
+
+    private fun derivative(source: String, x: Double, backend: ExpressionBackend): Double =
+        mathCompiler.compileTree(
+            mathCompiler.parseTree(source, mapOf("x" to Double::class)).differentiateOrThrow("x"),
+            backend,
+        ).eval(MapEvaluationContext(mapOf("x" to x))) as Double
+
+    @Test
+    fun `derivative of sin`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("sin(\$x)", 0.7, backend) shouldBe (cos(0.7) plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `derivative of cos`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("cos(\$x)", 0.7, backend) shouldBe (-sin(0.7) plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `derivative of exp`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("exp(\$x)", 0.7, backend) shouldBe (exp(0.7) plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `derivative of ln`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("ln(\$x)", 2.0, backend) shouldBe (0.5 plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `derivative of sqrt`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("sqrt(\$x)", 4.0, backend) shouldBe (0.25 plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `derivative of pow with constant exponent`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("pow(\$x, 3.0)", 2.0, backend) shouldBe (12.0 plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `derivative of pow with constant base`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("pow(2.0, \$x)", 3.0, backend) shouldBe (8.0 * ln(2.0) plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `derivative of sin of x squared applies the chain rule`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            derivative("sin(\$x * \$x)", 0.5, backend) shouldBe (cos(0.25) * 1.0 plusOrMinus 1e-9)
+        }
+    }
+
+    @Test
+    fun `differentiation of non-differentiable functions is a clear error`() {
+        for (source in listOf("abs(\$x)", "floor(\$x)", "round(\$x)")) {
+            val exception = shouldThrow<ExpressionException> {
+                mathCompiler.parseTree(source, mapOf("x" to Double::class)).differentiateOrThrow("x")
+            }
+            exception.message shouldContain "not differentiable"
+        }
+    }
+
+    @Test
+    fun `non-differentiated math function on a variable still evaluates`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            val expression = mathCompiler.compile("sin(\$x)", mapOf("x" to Double::class), backend)
+            (expression.eval(MapEvaluationContext(mapOf("x" to 0.7))) as Double) shouldBe (sin(0.7) plusOrMinus 1e-9)
         }
     }
 }

@@ -114,7 +114,9 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
 
     private class AsmEmission(
         private val mv: MethodVisitor,
-        private val variableSlots: Map<String, Int> = emptyMap(),
+        // null: expression mode (variables load from the EvaluationContext);
+        // non-null: specialized mode (variables must be method parameters)
+        private val variableSlots: Map<String, Int>? = null,
     ) : Emission {
         override fun constant(type: KClass<*>, value: Any) {
             // LDC cannot push booleans; emit them as int constants
@@ -126,9 +128,13 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
         }
 
         override fun loadVariable(name: String, type: KClass<*>) {
-            val slot = variableSlots[name]
-            if (slot != null) {
+            val slots = variableSlots
+            if (slots != null) {
                 // specialized mode: the variable is a method parameter, no context
+                val slot = slots[name]
+                    ?: throw ExpressionException(
+                        "variable '$name' is not a parameter of the specialized compile target"
+                    )
                 mv.visitVarInsn(loadOpcode(type), slot)
                 return
             }

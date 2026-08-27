@@ -39,6 +39,11 @@ Build notes:
 
 - Use the wrapper (`./gradlew`, Gradle 7.5.1). Newer system Gradle (9.x)
   fails against the Kotlin 1.9.10 plugin.
+- The build must RUN on JDK 21 or older: kapt (Kotlin 1.9.10) cannot parse
+  `java.version` "22+" and fails with a bare `IllegalArgumentException: 25`.
+  If the default JVM is newer, point Gradle at an older JDK, e.g.
+  `./gradlew test -Dorg.gradle.java.home=/path/to/jdk-21` (or set
+  `org.gradle.java.home` in `~/.gradle/gradle.properties`, or JAVA_HOME).
 - A JVM target mismatch warning between `compileTestJava` (21) and
   `compileTestKotlin` (17) is currently tolerated; consider a JVM toolchain
   if it becomes an error.
@@ -61,6 +66,10 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   `branch`, `logicalAnd`/`logicalOr`/`logicalNot`, `stringConcat`,
   `objectsEquals`, `invokeStringMethod`. Reference `!=` is the node's job
   (invert `objectsEquals` with `logicalNot`).
+- `core/node/DifferentiableNode.kt` — symbolic differentiation hook:
+  nodes implement `DifferentiableNode.differentiate(by)`; the rules live
+  in the node classes, so new extensions implement it to become
+  differentiable (`differentiateOrThrow` errors clearly otherwise).
 - `core/backend/` — `ExpressionBackend.compile(root: TypedNode)`,
   `CompositionBackend` (`root.build()`), and `asm/AsmBackend` (generates a
   bytecode class per expression via `emit(emission)`). The default backend
@@ -99,6 +108,10 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
 - `ext/string/` — `StringExtension`: string literals with minimal escapes,
   `+` concat (a second `InfixOperatorParser` on the math `+` token, tried
   after arithmetic), `length`, `contains` (emitted as `indexOf >= 0`).
+- `ext/calculus/` — `Differentiator`: `differentiate(root, by)` applies
+  the nodes' `DifferentiableNode` rules (Double-only) and simplifies the
+  result; `simplify` folds constants and collapses arithmetic identities,
+  passing unknown node classes through unchanged.
 - `ext/StandardSyntax.kt` — preset combining `MathSyntax` + `LogicExtension`
   + `StringExtension` in that order (so arithmetic `+` wins before concat).
 

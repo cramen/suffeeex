@@ -4,6 +4,7 @@ import ru.cramen.suffeeex.core.backend.ExpressionBackend
 import ru.cramen.suffeeex.core.backend.SpecializedBackend
 import ru.cramen.suffeeex.core.backend.asm.AsmBackend
 import ru.cramen.suffeeex.core.backend.specializedSignature
+import ru.cramen.suffeeex.core.node.TypedNode
 import ru.cramen.suffeeex.core.syntax.ExtensionRegistry
 import ru.cramen.suffeeex.core.syntax.SyntaxExtension
 import ru.cramen.suffeeex.core.syntax.SyntaxParser
@@ -22,7 +23,19 @@ class ExpressionCompiler(registry: ExtensionRegistry) {
         source: String,
         varTypes: Map<String, KClass<*>> = emptyMap(),
         backend: ExpressionBackend = AsmBackend,
-    ): Expression = backend.compile(syntaxParser.parse(tokenizer.tokenize(source), varTypes))
+    ): Expression = compileTree(parseTree(source, varTypes), backend)
+
+    /**
+     * Tokenizes and parses [source] into the typed node tree, without
+     * compiling it. Useful when the tree itself is needed, e.g. for
+     * symbolic transformations before compilation.
+     */
+    fun parseTree(source: String, varTypes: Map<String, KClass<*>> = emptyMap()): TypedNode =
+        syntaxParser.parse(tokenizer.tokenize(source), varTypes)
+
+    /** Compiles an already parsed node tree with [backend]. */
+    fun compileTree(root: TypedNode, backend: ExpressionBackend = AsmBackend): Expression =
+        backend.compile(root)
 
     /**
      * Compiles [source] into an implementation of the fun interface [target]:

@@ -9,6 +9,7 @@ import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
 import ru.cramen.suffeeex.core.MapEvaluationContext
 import ru.cramen.suffeeex.core.backend.ExpressionBackend
+import ru.cramen.suffeeex.core.node.differentiateOrThrow
 import ru.cramen.suffeeex.ext.math.number.NumberExtension
 import ru.cramen.suffeeex.ext.math.operator.ArithmeticExtension
 import kotlin.reflect.KClass
@@ -94,5 +95,32 @@ internal class VariableExtensionTest {
                 backend,
             ) shouldBe 5
         }
+    }
+
+    @Test
+    fun `differentiating by own variable yields one`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            val tree = compiler.parseTree("\$x", mapOf("x" to Double::class))
+            val derivative = tree.differentiateOrThrow("x")
+            derivative.type shouldBe Double::class
+            compiler.compileTree(derivative, backend).eval(MapEvaluationContext(emptyMap())) shouldBe 1.0
+        }
+    }
+
+    @Test
+    fun `differentiating by another variable yields zero`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            val tree = compiler.parseTree("\$y", mapOf("y" to Double::class))
+            val derivative = tree.differentiateOrThrow("x")
+            derivative.type shouldBe Double::class
+            compiler.compileTree(derivative, backend).eval(MapEvaluationContext(emptyMap())) shouldBe 0.0
+        }
+    }
+
+    @Test
+    fun `differentiating a non-Double variable by itself is a compile error`() {
+        val tree = compiler.parseTree("\$x", mapOf("x" to Int::class))
+        val exception = shouldThrow<ExpressionException> { tree.differentiateOrThrow("x") }
+        exception.message shouldContain "differentiation variable 'x' must be Double, got Int"
     }
 }

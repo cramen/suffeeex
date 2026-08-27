@@ -2,6 +2,7 @@ package ru.cramen.suffeeex.ext.variable
 
 import ru.cramen.suffeeex.core.Expression
 import ru.cramen.suffeeex.core.ExpressionException
+import ru.cramen.suffeeex.core.node.DifferentiableNode
 import ru.cramen.suffeeex.core.node.Emission
 import ru.cramen.suffeeex.core.node.TypedNode
 import ru.cramen.suffeeex.core.syntax.ExtensionRegistry
@@ -11,12 +12,13 @@ import ru.cramen.suffeeex.core.token.MEDIUM_TOKEN_PRIORITY
 import ru.cramen.suffeeex.core.token.RegexpTokenParser
 import ru.cramen.suffeeex.core.token.Token
 import ru.cramen.suffeeex.core.token.TokenType
+import ru.cramen.suffeeex.ext.math.number.NumberLiteralNode
 import kotlin.reflect.KClass
 
 object VariableTokenType : TokenType()
 
 /** Variable with a type declared at compile time via `varTypes`. */
-class VariableNode(val name: String, override val type: KClass<*>) : TypedNode {
+class VariableNode(val name: String, override val type: KClass<*>) : TypedNode, DifferentiableNode {
     override fun build(): Expression = Expression { context ->
         val value = context.resolve(name)
             ?: throw ExpressionException("variable '$name' is not present in the evaluation context")
@@ -29,6 +31,14 @@ class VariableNode(val name: String, override val type: KClass<*>) : TypedNode {
     }
 
     override fun emit(emission: Emission) = emission.loadVariable(name, type)
+
+    override fun differentiate(by: String): TypedNode {
+        if (name != by) return NumberLiteralNode(0.0, Double::class)
+        if (type != Double::class) {
+            throw ExpressionException("differentiation variable '$by' must be Double, got ${type.simpleName}")
+        }
+        return NumberLiteralNode(1.0, Double::class)
+    }
 }
 
 object VariableExtension : SyntaxExtension {

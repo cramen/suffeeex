@@ -2,10 +2,12 @@ package ru.cramen.suffeeex.ext.math.operator
 
 import ru.cramen.suffeeex.core.Expression
 import ru.cramen.suffeeex.core.ExpressionException
+import ru.cramen.suffeeex.core.node.DifferentiableNode
 import ru.cramen.suffeeex.core.node.Emission
 import ru.cramen.suffeeex.core.node.NUMERIC_TYPES
 import ru.cramen.suffeeex.core.node.NumericOp
 import ru.cramen.suffeeex.core.node.TypedNode
+import ru.cramen.suffeeex.core.node.differentiateOrThrow
 import ru.cramen.suffeeex.core.syntax.ExtensionRegistry
 import ru.cramen.suffeeex.core.syntax.InfixOperatorParser
 import ru.cramen.suffeeex.core.syntax.PrefixOperatorParser
@@ -66,7 +68,7 @@ private val DOUBLE_OPS: Map<NumericOp, (Double, Double) -> Double> = mapOf(
  * equal and numeric, and the result keeps that type. Type dispatch happens
  * once at compile time.
  */
-class BinaryArithmeticNode(val op: NumericOp, val left: TypedNode, val right: TypedNode) : TypedNode {
+class BinaryArithmeticNode(val op: NumericOp, val left: TypedNode, val right: TypedNode) : TypedNode, DifferentiableNode {
     override val type: KClass<*>
 
     init {
@@ -108,10 +110,39 @@ class BinaryArithmeticNode(val op: NumericOp, val left: TypedNode, val right: Ty
         emission.push(right)
         emission.numericBinary(op, type)
     }
+
+    override fun differentiate(by: String): TypedNode {
+        if (type != Double::class) {
+            throw ExpressionException(
+                "differentiation is only supported for Double expressions, got ${type.simpleName}"
+            )
+        }
+        val dl = left.differentiateOrThrow(by)
+        val dr = right.differentiateOrThrow(by)
+        return when (op) {
+            NumericOp.ADD -> BinaryArithmeticNode(NumericOp.ADD, dl, dr)
+            NumericOp.SUB -> BinaryArithmeticNode(NumericOp.SUB, dl, dr)
+            NumericOp.MUL -> BinaryArithmeticNode(
+                NumericOp.ADD,
+                BinaryArithmeticNode(NumericOp.MUL, dl, right),
+                BinaryArithmeticNode(NumericOp.MUL, left, dr),
+            )
+            NumericOp.DIV -> BinaryArithmeticNode(
+                NumericOp.DIV,
+                BinaryArithmeticNode(
+                    NumericOp.SUB,
+                    BinaryArithmeticNode(NumericOp.MUL, dl, right),
+                    BinaryArithmeticNode(NumericOp.MUL, left, dr),
+                ),
+                BinaryArithmeticNode(NumericOp.MUL, right, right),
+            )
+            NumericOp.REM -> throw ExpressionException("differentiation of '%' is not supported")
+        }
+    }
 }
 
 /** Unary minus on a numeric operand; the result keeps the operand type. */
-class NegationNode(val operand: TypedNode) : TypedNode {
+class NegationNode(val operand: TypedNode) : TypedNode, DifferentiableNode {
     override val type: KClass<*> = operand.type
 
     init {
@@ -134,6 +165,15 @@ class NegationNode(val operand: TypedNode) : TypedNode {
     override fun emit(emission: Emission) {
         emission.push(operand)
         emission.numericNegate(type)
+    }
+
+    override fun differentiate(by: String): TypedNode {
+        if (type != Double::class) {
+            throw ExpressionException(
+                "differentiation is only supported for Double expressions, got ${type.simpleName}"
+            )
+        }
+        return NegationNode(operand.differentiateOrThrow(by))
     }
 }
 

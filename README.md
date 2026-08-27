@@ -121,6 +121,40 @@ nullable return type is accepted). The generated implementation reads
 arguments from JVM parameter slots directly — this is the variant that
 reaches native performance.
 
+### Symbolic differentiation
+
+The typed tree can be differentiated symbolically before compilation:
+parse without compiling, differentiate, compile the result.
+
+```kotlin
+val tree = compiler.parseTree("sin($x) * $x", mapOf("x" to Double::class))
+val derivative = Differentiator.differentiate(tree, "x")
+val d = compiler.compileTree(derivative)
+d.eval(MapEvaluationContext(mapOf("x" to 0.8)))   // sin(0.8) + 0.8·cos(0.8) ≈ 1.2747
+```
+
+`Differentiator` (`ru.cramen.suffeeex.ext.calculus`) applies the standard
+rules — sum, product, quotient, chain — and simplifies the result:
+constants are folded, trivial arithmetic (`0 + x`, `x * 1`, ...) is
+collapsed. A derivative is an ordinary tree, so everything else works on
+it too, including specialized compilation:
+
+```kotlin
+fun interface Derivative {
+    fun eval(x: Double): Double
+}
+
+val f = AsmBackend.compile(derivative, Derivative::class) as Derivative
+f.eval(0.8)   // same value, straight from parameter slots
+```
+
+Differentiation is Double-only: it covers `$` variables, `+ - * /`, unary
+`-`, and `sqrt`/`pow`/`sin`/`cos`/`tan`/`ln`/`log10`/`exp`. Anything else —
+`if`, `abs`, strings, `floor`/`round`, Int/Long arithmetic — raises an
+`ExpressionException` at differentiation (compile) time. Your own
+extensions become differentiable by implementing `DifferentiableNode`
+(`differentiate(by: String): TypedNode`) on their node classes.
+
 ### Choosing a backend
 
 ```kotlin
@@ -284,6 +318,7 @@ ext/math/        number / operator / bracket / function + MathSyntax preset
 ext/logic/       booleans, comparisons, && || !, if()
 ext/string/      string literals, + concat, length, contains
 ext/variable/    $name variables
+ext/calculus/    symbolic differentiation (Differentiator)
 ext/StandardSyntax.kt   everything above in one preset
 src/jmh/         benchmarks
 ```

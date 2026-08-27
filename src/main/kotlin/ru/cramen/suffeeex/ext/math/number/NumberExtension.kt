@@ -2,6 +2,7 @@ package ru.cramen.suffeeex.ext.math.number
 
 import ru.cramen.suffeeex.core.Expression
 import ru.cramen.suffeeex.core.ExpressionException
+import ru.cramen.suffeeex.core.node.DifferentiableNode
 import ru.cramen.suffeeex.core.node.Emission
 import ru.cramen.suffeeex.core.node.TypedNode
 import ru.cramen.suffeeex.core.syntax.ExtensionRegistry
@@ -15,10 +16,14 @@ import kotlin.reflect.KClass
 
 object NumberTokenType : TokenType()
 
-class NumberLiteralNode(val value: Number, override val type: KClass<*>) : TypedNode {
+class NumberLiteralNode(val value: Number, override val type: KClass<*>) : TypedNode, DifferentiableNode {
     override fun build(): Expression = Expression { value }
 
     override fun emit(emission: Emission) = emission.constant(type, value)
+
+    // A derivative lives in the Double world regardless of the literal's own type;
+    // the surrounding arithmetic rule enforces Double-only expressions.
+    override fun differentiate(by: String): TypedNode = NumberLiteralNode(0.0, Double::class)
 }
 
 object NumberExtension : SyntaxExtension {

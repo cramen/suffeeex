@@ -7,15 +7,23 @@ import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
 import ru.cramen.suffeeex.core.MapEvaluationContext
 import ru.cramen.suffeeex.core.backend.ExpressionBackend
+import ru.cramen.suffeeex.core.node.differentiateOrThrow
 import ru.cramen.suffeeex.ext.math.number.NumberExtension
+import ru.cramen.suffeeex.ext.variable.VariableExtension
 import kotlin.test.Test
 
 internal class ArithmeticExtensionTest {
 
     private val compiler = ExpressionCompiler(NumberExtension, ArithmeticExtension)
+    private val varCompiler = ExpressionCompiler(NumberExtension, ArithmeticExtension, VariableExtension)
 
     private fun eval(source: String, backend: ExpressionBackend): Any? =
         compiler.compile(source, backend = backend).eval(MapEvaluationContext(emptyMap()))
+
+    private fun evalDerivative(source: String, x: Double, backend: ExpressionBackend): Any? {
+        val derivative = varCompiler.parseTree(source, mapOf("x" to Double::class)).differentiateOrThrow("x")
+        return varCompiler.compileTree(derivative, backend).eval(MapEvaluationContext(mapOf("x" to x)))
+    }
 
     @Test
     fun `multiplication has higher precedence than addition`() {
@@ -100,6 +108,48 @@ internal class ArithmeticExtensionTest {
     fun `mixed float and double operands are a compile error`() {
         for ((_, backend) in ALL_BACKENDS) {
             shouldThrow<ExpressionException> { eval("1.5f + 0.5", backend) }
+        }
+    }
+
+    @Test
+    fun `derivative of x squared is 2x`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            evalDerivative("\$x*\$x", 3.0, backend) shouldBe 6.0
+        }
+    }
+
+    @Test
+    fun `derivative of linear expression is its slope`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            evalDerivative("2.0*\$x + 1.0", 42.0, backend) shouldBe 2.0
+        }
+    }
+
+    @Test
+    fun `derivative of x cubed applies the product rule recursively`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            evalDerivative("\$x*\$x*\$x", 2.0, backend) shouldBe 12.0
+        }
+    }
+
+    @Test
+    fun `derivative of one over x applies the quotient rule`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            evalDerivative("1.0/\$x", 2.0, backend) shouldBe -0.25
+        }
+    }
+
+    @Test
+    fun `derivative of negation is negated derivative`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            evalDerivative("-\$x", 5.0, backend) shouldBe -1.0
+        }
+    }
+
+    @Test
+    fun `differentiation of int expression is a compile error`() {
+        shouldThrow<ExpressionException> {
+            varCompiler.parseTree("\$x + 1", mapOf("x" to Int::class)).differentiateOrThrow("x")
         }
     }
 }
