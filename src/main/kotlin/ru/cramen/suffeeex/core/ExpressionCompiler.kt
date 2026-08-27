@@ -9,21 +9,47 @@ import ru.cramen.suffeeex.core.syntax.ExtensionRegistry
 import ru.cramen.suffeeex.core.syntax.SyntaxExtension
 import ru.cramen.suffeeex.core.syntax.SyntaxParser
 import ru.cramen.suffeeex.core.token.Tokenizer
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 
 class ExpressionCompiler(registry: ExtensionRegistry) {
     private val tokenizer = Tokenizer(registry.tokenParsers)
     private val syntaxParser = SyntaxParser(registry)
 
+    private data class ExpressionCacheKey(
+        val source: String,
+        val varTypes: Map<String, KClass<*>>,
+        val backend: ExpressionBackend,
+    )
+
+    private data class SpecializedCacheKey(
+        val source: String,
+        val target: KClass<*>,
+        val backend: ExpressionBackend,
+    )
+
+    // compiled expressions are stateless, so the same key can safely share
+    // one instance (and one generated class) across all callers
+    private val expressionCache = ConcurrentHashMap<ExpressionCacheKey, Expression>()
+    private val specializedCache = ConcurrentHashMap<SpecializedCacheKey, Any>()
+
     constructor(vararg extensions: SyntaxExtension) : this(
         ExtensionRegistry().also { registry -> extensions.forEach { it.register(registry) } }
     )
 
+    /**
+     * Compiles [source] into a ready [Expression]. Results are cached by
+     * (source, varTypes, backend): compiling the same key twice returns the
+     * same instance (compiled expressions are stateless). [parseTree] and
+     * [compileTree] are not cached.
+     */
     fun compile(
         source: String,
         varTypes: Map<String, KClass<*>> = emptyMap(),
         backend: ExpressionBackend = AsmBackend,
-    ): Expression = compileTree(parseTree(source, varTypes), backend)
+    ): Expression = expressionCache.computeIfAbsent(ExpressionCacheKey(source, varTypes, backend)) {
+        compileTree(parseTree(source, varTypes), backend)
+    }
 
     /**
      * Tokenizes and parses [source] into the typed node tree, without
@@ -41,7 +67,8 @@ class ExpressionCompiler(registry: ExtensionRegistry) {
      * Compiles [source] into an implementation of the fun interface [target]:
      * the single abstract method's parameters are the expression variables
      * (by name), its return type must match the expression type (a primitive
-     * or its wrapper are both accepted).
+     * or its wrapper are both accepted). Cached by (source, target, backend):
+     * compiling the same key twice returns the same instance.
      */
     fun <T : Any> compile(
         source: String,
@@ -51,6 +78,17 @@ class ExpressionCompiler(registry: ExtensionRegistry) {
         if (backend !is SpecializedBackend) {
             throw ExpressionException("backend $backend does not support specialized compilation")
         }
+        @Suppress("UNCHECKED_CAST")
+        return specializedCache.computeIfAbsent(SpecializedCacheKey(source, target, backend)) {
+            compileSpecialized(source, target, backend)
+        } as T
+    }
+
+    private fun <T : Any> compileSpecialized(
+        source: String,
+        target: KClass<T>,
+        backend: SpecializedBackend,
+    ): T {
         val signature = specializedSignature(target)
         val varTypes = signature.parameters.associate { it.name to it.type }
 

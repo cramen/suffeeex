@@ -30,12 +30,16 @@ expr.eval(MapEvaluationContext(mapOf("amount" to 250)))   // 225.0
   `toLong(1) + 1L`. Type errors surface when you compile, not in production.
 - **Extensible down to the syntax.** Numbers, operators, brackets,
   functions, variables, booleans, strings, `if` — all are ordinary
-  extensions built on public extension points. Add your own operators,
-  functions, literals — up to conditions and, eventually, loops — without
-  touching the core.
+  extensions built on public extension points. New types plug into the
+  `TypeEmissions` registry, and generic emission primitives (labels,
+  jumps, local slots) let extensions add their own control flow — even
+  loops — without touching the core.
 - **Replaceable backend.** The frontend never sees bytecode. Nodes compile
   through a small `Emission` abstraction; the library ships a bytecode
   backend (`AsmBackend`, the default) and a fallback composition backend.
+- **Symbolic transformations.** The typed tree is public API: parse without
+  compiling (`parseTree`), transform, compile (`compileTree`). Ships with
+  symbolic differentiation (`ext/calculus`) as a worked example.
 
 ## Performance
 
@@ -167,6 +171,13 @@ but simple and dependency-free. Both backends share the frontend and the
 static typing rules, so behavior (results and compile errors) is identical;
 both are exercised by the same test suite.
 
+Compilation results are cached per (source, variable types or target
+interface, backend): compiling the same expression again returns the same
+stateless instance. In the ASM backend every generated class is defined in
+its own classloader, so an expression that is no longer referenced can be
+unloaded by the garbage collector — dynamically compiled expressions do not
+leak metaspace.
+
 ## Built-in syntax (`StandardSyntax`)
 
 ### Literals
@@ -260,7 +271,17 @@ You can hook in at three levels:
    hooks: `build()` for the composition backend (plain Kotlin lambdas) and
    `emit(emission)` for bytecode backends (`Emission` offers constants,
    variable loads, numeric ops, comparisons, branching, short-circuit
-   logic, string ops, math calls — no ASM knowledge required).
+   logic, string ops, math calls — no ASM knowledge required). Beyond the
+   built-ins, `Emission` exposes generic primitives — `ldc`,
+   `newObject`/`invokeConstructor`, `invokeStatic`/`invokeVirtual`,
+   labels with conditional jumps, local slots
+   (`newLocal`/`loadLocal`/`storeLocal`), `pop` — so custom control flow
+   (even loops) and custom types are expressible without touching core.
+   New types plug in via the `TypeEmissions` registry: a `TypeEmission`
+   describes the JVM descriptor, stack category, boxing and constant
+   pushing, and unregistered reference types get an automatic fallback.
+   See `src/test/kotlin/ru/cramen/suffeeex/extensibility/` for complete
+   worked examples — a loop extension and a BigDecimal type extension.
 
 A complete example — a `**` power operator on Doubles:
 
@@ -311,7 +332,8 @@ without further work — and so does specialized compilation.
 core/            Expression, EvaluationContext, ExpressionCompiler
 core/token/      tokenizer + TokenParser implementations
 core/syntax/     Pratt parser, ExtensionRegistry, extension points
-core/node/       TypedNode, Emission (backend-agnostic bytecode IR)
+core/node/       TypedNode, DifferentiableNode, Emission (backend-agnostic
+                 bytecode IR), TypeEmission type registry
 core/backend/    ExpressionBackend, SpecializedBackend, CompositionBackend,
                  asm/AsmBackend (default)
 ext/math/        number / operator / bracket / function + MathSyntax preset
@@ -331,8 +353,12 @@ src/jmh/         benchmarks
 ./gradlew jmh       # benchmarks -> build/results/jmh/results.txt
 ```
 
-Kotlin 1.9.10, JVM target 17. Use the Gradle wrapper (7.5.1) — newer system
-Gradle is incompatible with the Kotlin plugin version.
+Kotlin 1.9.10, JVM target 17 (via a Gradle toolchain, so compilation is
+independent of the launcher JDK). Use the Gradle wrapper (7.5.1) — newer
+system Gradle is incompatible with the Kotlin plugin version. The Gradle
+daemon itself must run on JDK 21 or older (Gradle 7.5.1 and kapt do not
+support newer JDKs); the compiled library targets JVM 17 and runs on any
+JDK 17+.
 
 ## License
 

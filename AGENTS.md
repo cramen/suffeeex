@@ -65,18 +65,31 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   Boolean (`int` 0/1 on the stack) and String primitives: `compare`,
   `branch`, `logicalAnd`/`logicalOr`/`logicalNot`, `stringConcat`,
   `objectsEquals`, `invokeStringMethod`. Reference `!=` is the node's job
-  (invert `objectsEquals` with `logicalNot`).
+  (invert `objectsEquals` with `logicalNot`). Generic escape hatches let
+  extensions add types and control flow without touching core: `ldc`,
+  `newObject`/`invokeConstructor`, `invokeStatic`/`invokeVirtual`, `pop`,
+  labels (`newLabel`/`mark`/`jump`/`jumpIfFalse`/`jumpIfTrue` over the
+  `EmissionLabel` marker) and locals (`newLocal`/`loadLocal`/`storeLocal`).
+- `core/node/TypeEmission.kt` — the type registry: `TypeEmission`
+  (descriptor, `StackCategory`, wrapper/unbox, `pushConstant`) and
+  `TypeEmissions` (pre-registered Int/Long/Float/Double/Boolean/String;
+  `register` adds new types, `of` falls back to an automatic
+  reference-type emission for unregistered types). All bytecode type
+  knowledge (descriptors, boxing, load/store/return opcodes) derives from
+  this registry — the numeric-op offset equals `StackCategory.ordinal`.
 - `core/node/DifferentiableNode.kt` — symbolic differentiation hook:
   nodes implement `DifferentiableNode.differentiate(by)`; the rules live
   in the node classes, so new extensions implement it to become
   differentiable (`differentiateOrThrow` errors clearly otherwise).
 - `core/backend/` — `ExpressionBackend.compile(root: TypedNode)`,
   `CompositionBackend` (`root.build()`), and `asm/AsmBackend` (generates a
-  bytecode class per expression via `emit(emission)`). The default backend
-  is `AsmBackend`. `SpecializedBackend` (`compile(root, target: KClass<*>)`,
-  implemented by both backends) compiles against a user fun interface whose
-  single abstract method's parameters are the variables — direct parameter
-  loads in ASM, a `Proxy` over an index-based context in composition.
+  bytecode class per expression via `emit(emission)`, each defined in its
+  own child classloader so it unloads with the expression). The default
+  backend is `AsmBackend`. `SpecializedBackend` (`compile(root, target:
+  KClass<*>)`, implemented by both backends) compiles against a user fun
+  interface whose single abstract method's parameters are the variables —
+  direct parameter loads in ASM, a `Proxy` over an index-based context in
+  composition.
 - `core/token/` — tokenizer + token parsers (`TokenParser`,
   `SimpleTokenParser`, `SimpleMultiTokenParser`, `RegexpTokenParser`,
   priorities in `Priorities.kt`).
@@ -94,7 +107,13 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   `compile(source, target: KClass<T>, backend)` is the specialized variant
   returning a `T` implementing the target fun interface; it validates the
   interface (exactly one abstract method, parameter names cover exactly the
-  variables used, return type matches, wrappers accepted).
+  variables used, return type matches, wrappers accepted). Both `compile`
+  variants are cached (`ConcurrentHashMap` keyed by
+  source + varTypes/target + backend): the same key returns the same
+  instance — compiled expressions are stateless. `parseTree(source,
+  varTypes)` exposes the raw tokenize→parse pipeline and
+  `compileTree(root, backend)` compiles an existing tree; neither is
+  cached.
 - `ext/math/` — `number` (typed literals, `NumberLiteralNode`), `operator`
   (same-type arithmetic, `BinaryArithmeticNode` + `NegationNode`),
   `bracket` (`( ) ,`), `function` (`ConvertNumericNode`, `MathFunctionNode`;
