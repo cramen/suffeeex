@@ -66,18 +66,18 @@ paths, or use specialized compilation and skip the context entirely.
 From Maven Central:
 
 ```kotlin
-implementation("io.github.cramen:suffeeex:0.1.1")   // Gradle (Kotlin DSL)
+implementation("io.github.cramen:suffeeex:0.2.0")   // Gradle (Kotlin DSL)
 ```
 
 ```groovy
-implementation 'io.github.cramen:suffeeex:0.1.1'    // Gradle (Groovy)
+implementation 'io.github.cramen:suffeeex:0.2.0'    // Gradle (Groovy)
 ```
 
 ```xml
 <dependency>
   <groupId>io.github.cramen</groupId>
   <artifactId>suffeeex</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -85,7 +85,7 @@ Building from source still works:
 
 ```bash
 git clone https://github.com/cramen/suffeeex && cd suffeeex
-./gradlew build        # produces build/libs/suffeeex-0.1.1.jar
+./gradlew build        # produces build/libs/suffeeex-0.2.0.jar
 ```
 
 Requires a JDK 17+ runtime.

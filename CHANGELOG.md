@@ -3,7 +3,7 @@
 The project is pre-1.0: the public API may change between minor versions.
 Breaking changes are listed explicitly.
 
-## Unreleased (0.2.0)
+## 0.2.0
 
 - Host functions bridge (`ext/host`): `ExtensionRegistry.registerHostFunction(name, KFunction)`
   and `HostFunctionsExtension(vararg pairs)` make user Kotlin/JVM functions
