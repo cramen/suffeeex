@@ -2,14 +2,13 @@ import com.vanniktech.maven.publish.SonatypeHost
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.9.10"
-    kotlin("kapt") version "1.9.10"
+    kotlin("jvm") version "1.9.24"
+    kotlin("kapt") version "1.9.24"
     id("me.champeau.jmh") version "0.7.2"
-    // 0.25.3 is the newest release that runs on Gradle 7.5.1 (0.26+ needs
-    // Gradle 7.6, 0.28+ with native Central Portal support needs 8.1);
-    // publishing targets the Central Portal through its OSSRH Staging API
-    // compatibility endpoint (see publishToMavenCentral below)
-    id("com.vanniktech.maven.publish") version "0.25.3"
+    // 0.29.0: first line with native Central Portal support (0.28+); runs on
+    // Gradle 8.1+ (0.30.x needs a newer Gradle); publishing targets the
+    // Central Portal API directly (see publishToMavenCentral below)
+    id("com.vanniktech.maven.publish") version "0.29.0"
     id("maven-publish")
     `java-library`
 }
@@ -25,8 +24,8 @@ dependencies {
 
     implementation("org.ow2.asm:asm:9.7")
 
-    runtimeOnly("org.jetbrains.kotlin:kotlin-reflect:1.9.10")
-    compileOnly("org.jetbrains.kotlin:kotlin-reflect:1.9.10")
+    runtimeOnly("org.jetbrains.kotlin:kotlin-reflect:1.9.24")
+    compileOnly("org.jetbrains.kotlin:kotlin-reflect:1.9.24")
 
     testImplementation(kotlin("test"))
     testImplementation("io.kotest:kotest-assertions-core-jvm:5.7.2")
@@ -46,10 +45,9 @@ tasks.test {
 val signingKeyConfigured = providers.gradleProperty("signing.keyId").isPresent
 
 mavenPublishing {
-    // the Central Publisher Portal via its OSSRH Staging API compatibility
-    // endpoint (this plugin version predates native Central Portal support);
-    // the plugin appends /service/local/ itself
-    publishToMavenCentral(SonatypeHost("https://ossrh-staging-api.central.sonatype.com"))
+    // native Central Portal Publisher API; the Portal UI still requires
+    // finishing the deployment manually (no automaticRelease)
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     pom {
         name.set("suffeeex")
         description.set(
