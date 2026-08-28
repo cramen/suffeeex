@@ -3,7 +3,7 @@
 The project is pre-1.0: the public API may change between minor versions.
 Breaking changes are listed explicitly.
 
-## Unreleased
+## 0.3.0
 
 - Number literals: exponent form (`1e3`, `1.5e-3` → Double, `1e3f` → Float),
   digit underscores (`1_000_000`), hex (`0xFF`) and binary (`0b101`) literals

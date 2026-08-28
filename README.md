@@ -78,18 +78,18 @@ host call goes through reflective `KFunction.call`, which dominates its
 From Maven Central:
 
 ```kotlin
-implementation("io.github.cramen:suffeeex:0.2.0")   // Gradle (Kotlin DSL)
+implementation("io.github.cramen:suffeeex:0.3.0")   // Gradle (Kotlin DSL)
 ```
 
 ```groovy
-implementation 'io.github.cramen:suffeeex:0.2.0'    // Gradle (Groovy)
+implementation 'io.github.cramen:suffeeex:0.3.0'    // Gradle (Groovy)
 ```
 
 ```xml
 <dependency>
   <groupId>io.github.cramen</groupId>
   <artifactId>suffeeex</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -97,7 +97,7 @@ Building from source still works:
 
 ```bash
 git clone https://github.com/cramen/suffeeex && cd suffeeex
-./gradlew build        # produces build/libs/suffeeex-0.2.0.jar
+./gradlew build        # produces build/libs/suffeeex-0.3.0.jar
 ```
 
 Requires a JDK 17+ runtime.
