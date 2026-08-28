@@ -17,6 +17,13 @@ data class Token(
 abstract class TokenParser {
     abstract val priority: Int
     abstract fun match(exp: String, position: Int): Token?
+
+    /**
+     * The literal token strings this parser can produce, for tooling such as
+     * autocompletion. Parsers over a regex cannot enumerate their matches and
+     * keep the empty default.
+     */
+    open fun hints(): List<String> = emptyList()
 }
 
 open class SimpleTokenParser(
@@ -35,12 +42,15 @@ open class SimpleTokenParser(
             null
         }
     }
+
+    override fun hints(): List<String> = listOf(tokenString)
 }
 
 open class SimpleMultiTokenParser(
     tokenMap: Map<String, TokenType>,
     override val priority: Int = LOW_TOKEN_PRIORITY,
 ) : TokenParser() {
+    private val tokenStrings = tokenMap.keys.toList()
     private val byLength = tokenMap.entries
         .groupBy { it.key.length }
         .map {
@@ -56,6 +66,8 @@ open class SimpleMultiTokenParser(
             parsers[firstSymbols]?.let { Token(it, firstSymbols, position) }
         }.firstOrNull()
     }
+
+    override fun hints(): List<String> = tokenStrings
 }
 
 open class RegexpTokenParser(

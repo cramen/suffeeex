@@ -91,4 +91,19 @@ class ExtensionRegistry {
     fun function(name: String): FunctionParser? = functions[name]
 
     fun isFunctionNameToken(type: TokenType): Boolean = type == functionNameTokenType
+
+    /** All registered function parsers, in registration order. Read-only view for tooling. */
+    fun allFunctions(): Collection<FunctionParser> = functions.values
+
+    /** Token types with a registered literal parser. Read-only view for tooling. */
+    fun literalTypes(): Set<TokenType> = literals.keys
+
+    /** Token types with a registered prefix operator parser. Read-only view for tooling. */
+    fun prefixTypes(): Set<TokenType> = prefixOperators.keys
+
+    /** Token types with at least one registered infix operator parser. Read-only view for tooling. */
+    fun infixTypes(): Set<TokenType> = infixOperators.keys
+
+    /** Token types with a registered member access parser. Read-only view for tooling. */
+    fun memberAccessTypes(): Set<TokenType> = memberAccesses.keys
 }

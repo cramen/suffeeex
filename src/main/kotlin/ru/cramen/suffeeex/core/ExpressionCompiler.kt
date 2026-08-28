@@ -12,7 +12,14 @@ import ru.cramen.suffeeex.core.token.Tokenizer
 import java.lang.ref.SoftReference
 import kotlin.reflect.KClass
 
-class ExpressionCompiler(private val registry: ExtensionRegistry) {
+class ExpressionCompiler(
+    /**
+     * The registry this compiler was built from. Public so that tooling
+     * (e.g. input suggesters) can be driven by the same extension
+     * configuration as parsing, without core depending on such tooling.
+     */
+    val registry: ExtensionRegistry,
+) {
     private val tokenizer = Tokenizer(registry.tokenParsers)
     private val syntaxParser = SyntaxParser(registry)
 

@@ -11,6 +11,11 @@ Breaking changes are listed explicitly.
 - String functions: `matches` (whole-string regex), `startsWith`, `endsWith`,
   `indexOf`, `substring`, `replace` (literal), `toUpperCase`/`toLowerCase`
   (locale-independent), `trim`.
+- Input suggestions (`suggest` package): `Suggester(registry)` and the
+  `ExpressionCompiler.suggest(source, cursor, varTypes)` extension provide
+  registry-driven autocomplete — functions, operators and keywords from any
+  registered extension appear automatically via the new `TokenParser.hints()`
+  hook. `ExpressionCompiler.registry` is now public to enable such tooling.
 
 ## 0.2.0
 
