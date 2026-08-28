@@ -7,6 +7,7 @@ import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
 import ru.cramen.suffeeex.core.MapEvaluationContext
 import ru.cramen.suffeeex.core.backend.ExpressionBackend
+import java.math.BigDecimal
 import kotlin.reflect.KClass
 import kotlin.test.Test
 
@@ -102,6 +103,33 @@ internal class StandardSyntaxTest {
             shouldThrow<ExpressionException> {
                 eval("if(\$x, 1, 2)", mapOf("x" to Int::class), backend = backend)
             }
+        }
+    }
+
+    @Test
+    fun `decimal arithmetic and comparison inside if`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("if(1.10bd * 2bd >= 2.2bd, \"ok\", \"no\")", backend = backend) shouldBe "ok"
+        }
+    }
+
+    @Test
+    fun `decimal with a variable`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval(
+                "\$price * 1.2bd + -0.2bd",
+                mapOf("price" to BigDecimal::class),
+                mapOf("price" to BigDecimal("10")),
+                backend,
+            ) shouldBe BigDecimal("11.8")
+        }
+    }
+
+    @Test
+    fun `decimal unary minus does not break numeric negation`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("-1.10bd + 0.10bd", backend = backend) shouldBe BigDecimal("-1.00")
+            eval("-(1 + 2)", backend = backend) shouldBe -3
         }
     }
 

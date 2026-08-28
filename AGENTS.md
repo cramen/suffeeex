@@ -19,9 +19,9 @@ A Kotlin/JVM library for parsing and evaluating expressions.
 
 ## Tech stack
 
-- Kotlin 1.9.10, JVM target 17, Gradle (Kotlin DSL), `java-library` +
-  `maven-publish` + `com.vanniktech.maven.publish` 0.25.3 (newest release
-  that runs on Gradle 7.5.1)
+- Kotlin 1.9.24, JVM target 17, Gradle (Kotlin DSL), `java-library` +
+  `maven-publish` + `com.vanniktech.maven.publish` 0.29.0 (native Central
+  Portal support; runs on Gradle 8.1+)
 - Published as `io.github.cramen:suffeeex` on Maven Central; root package
   stays `ru.cramen.suffeeex` (groupId ≠ package)
 - Tests: `kotlin("test")` on JUnit platform + Kotest assertions
@@ -37,23 +37,26 @@ A Kotlin/JVM library for parsing and evaluating expressions.
   `build/results/jmh/results.txt` (and stdout). Short run configured:
   fork=1, 3 warmup + 5 measurement iterations.
 - Publish (maintainer): `./gradlew publishAllPublicationsToMavenCentralRepository`
-  — uploads to the Central Portal via its OSSRH Staging API compatibility
-  endpoint (`SonatypeHost("https://ossrh-staging-api.central.sonatype.com")`
-  in build.gradle.kts; native `CENTRAL_PORTAL` support needs plugin 0.28+,
-  which needs Gradle 8.1), then finish the release in the Portal UI. Needs
+  — uploads to the Central Portal via its native API
+  (`SonatypeHost.CENTRAL_PORTAL` in build.gradle.kts), then finish the
+  release in the Portal UI (https://central.sonatype.com/publishing), or
+  use `./gradlew publishAndReleaseToMavenCentral` to release without the
+  UI step. Needs
   `mavenCentralUsername`/`mavenCentralPassword` (portal user token) and
   `signing.*` GPG properties in `~/.gradle/gradle.properties`; without
   `signing.*` everything (incl. `publishToMavenLocal`) works unsigned.
 
 Build notes:
 
-- Use the wrapper (`./gradlew`, Gradle 7.5.1). Newer system Gradle (9.x)
-  fails against the Kotlin 1.9.10 plugin.
-- The build must RUN on JDK 21 or older: kapt (Kotlin 1.9.10) cannot parse
+- Use the wrapper (`./gradlew`, Gradle 8.9). Gradle 9.x fails against the
+  Kotlin 1.9.x plugin (missing `HasConvention`).
+- The build must RUN on JDK 21 or older: kapt (Kotlin 1.9.x) cannot parse
   `java.version` "22+" and fails with a bare `IllegalArgumentException: 25`.
   If the default JVM is newer, point Gradle at an older JDK, e.g.
   `./gradlew test -Dorg.gradle.java.home=/path/to/jdk-21` (or set
   `org.gradle.java.home` in `~/.gradle/gradle.properties`, or JAVA_HOME).
+  Note Gradle < 8.5 cannot run on Java 21, so 8.5+ is required with a
+  JDK 21 daemon.
 - A JVM target mismatch warning between `compileTestJava` (21) and
   `compileTestKotlin` (17) is currently tolerated; consider a JVM toolchain
   if it becomes an error.
@@ -77,7 +80,9 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   `objectsEquals`, `invokeStringMethod`. Reference `!=` is the node's job
   (invert `objectsEquals` with `logicalNot`). Generic escape hatches let
   extensions add types and control flow without touching core: `ldc`,
-  `newObject`/`invokeConstructor`, `invokeStatic`/`invokeVirtual`, `pop`,
+  `newObject`/`invokeConstructor`, `invokeStatic`/`invokeVirtual`/
+  `invokeInterface` (for interface receivers),
+  `getStaticField`/`getField`, `pop`,
   labels (`newLabel`/`mark`/`jump`/`jumpIfFalse`/`jumpIfTrue` over the
   `EmissionLabel` marker) and locals (`newLocal`/`loadLocal`/`storeLocal`).
 - `core/node/TypeEmission.kt` — the type registry: `TypeEmission`
@@ -112,10 +117,14 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
 - `core/syntax/` — Pratt parser engine (`SyntaxParser`, produces
   `TypedNode`), `ExtensionRegistry` and the extension points:
   `LiteralParser`, `PrefixOperatorParser`, `InfixOperatorParser`,
-  `FunctionParser`, `BracketParser`; a `SyntaxExtension` registers its
-  pieces into the registry. Several `InfixOperatorParser`s may share one
+  `MemberAccessParser`, `FunctionParser`, `BracketParser`; a
+  `SyntaxExtension` registers its pieces into the registry. Several
+  `InfixOperatorParser`s may share one
   token: the first whose `compile` succeeds wins (precedence of the first
   registered), and if all fail the first exception is rethrown.
+  `MemberAccessParser` (e.g. `.`) consumes the member name as a raw token,
+  not an expression, binds tighter than any infix operator, and is checked
+  before infix — a token type registered as both is member access.
 - `core/ExpressionCompiler.kt` — `ExpressionCompiler(vararg extensions)`;
   `compile(source, varTypes = emptyMap(), backend = AsmBackend)`
   returns a ready `Expression`. `$name` variable types
@@ -123,12 +132,14 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   `compile(source, target: KClass<T>, backend)` is the specialized variant
   returning a `T` implementing the target fun interface; it validates the
   interface (exactly one abstract method, parameter names cover exactly the
-  variables used, return type matches, wrappers accepted). Both `compile`
-  variants are cached (`ConcurrentHashMap` of `SoftReference` keyed by
+  variables used, return type matches, wrappers accepted). Parameters may be
+  the primitives, String, or any reference type (e.g. a data class used with
+  property access). Both `compile`
+  variants are cached (bounded LRU, 1024 entries, of `SoftReference` keyed by
   source + varTypes/target + backend): the same key returns the same
-  instance while it stays reachable — compiled expressions are stateless —
-  and an entry cleared by the GC under memory pressure is recomputed on
-  the next compile. `parseTree(source, varTypes)` exposes the raw
+  instance while it stays reachable and within the bound — compiled
+  expressions are stateless — and a dropped entry is recomputed on the next
+  compile. `parseTree(source, varTypes)` exposes the raw
   tokenize→parse pipeline and `compileTree(root, backend)` compiles an
   existing tree; neither is cached. All compile paths pass the registry's
   scoped `typeEmissions` to the backend.
@@ -145,12 +156,51 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
 - `ext/string/` — `StringExtension`: string literals with minimal escapes,
   `+` concat (a second `InfixOperatorParser` on the math `+` token, tried
   after arithmetic), `length`, `contains` (emitted as `indexOf >= 0`).
+- `ext/property/` — `PropertyAccessExtension`: typed property access
+  `$order.total` via a `.` `MemberAccessParser` (LOW token priority, so the
+  number literal regex still wins for `1.5`). The member is resolved at
+  compile time against the target's `KClass` — Kotlin member property
+  (javaGetter), then `getX()`/`isX()`, then a public field; unknown members
+  are a compile error listing the available properties. `PropertyNode` reads
+  reflectively in composition and emits `invokeVirtual`/`invokeInterface`/
+  `getField` on bytecode backends.
+- `ext/decimal/` — `DecimalExtension(roundingMode = RoundingMode.UNNECESSARY)`
+  (a class — the mode is an extension-level setting): BigDecimal `bd`
+  literals, `+ - * / %`, unary minus, and all six comparisons via
+  `compareTo` (`==`/`!=` ignore scale: `1.0bd == 1.00bd`). The mode applies
+  to `/` and `setScale(x, scale)` only; UNNECESSARY keeps raw semantics
+  (plain `divide(right)` — exact quotient, so `1bd / 3bd` throws at
+  runtime), any other mode switches `/` to `divide(right, mode)`, which
+  rounds at the fixed scale `left.scale() - right.scale()`. Functions:
+  `toBigDecimal` (Int/Long via `BigDecimal.valueOf(long)`, Double via
+  `valueOf(double)` — string-exact, String via the constructor),
+  truncating `toInt`/`toLong`/`toFloat`/`toDouble`, `abs`/`min`/`max`,
+  `pow` (Int exponent), `signum`. **Registration order constraint:** must
+  be registered after `ArithmeticExtension` — prefix parsers are
+  single-per-token, so its unary minus replaces arithmetic's and delegates
+  to `NegationNode` for non-BigDecimal operands — and after
+  `MathFunctionsExtension`: function parsers are single-per-name, so the
+  decimal variants of the shared names capture the math parser via
+  `registry.function(name)` before overwriting it and delegate to it for
+  non-BigDecimal arguments. Also registers a scoped
+  `TypeEmission` for BigDecimal (constants are constructed from their
+  string form; LDC cannot hold one).
+- `ext/host/` — `registerHostFunction(name, KFunction)` /
+  `HostFunctionsExtension(vararg pairs)`: user Kotlin/JVM functions callable
+  from expressions. The call plan (static vs object member, instance field)
+  is resolved at compile time; v1 supports top-level, `@JvmStatic`/Java
+  static, and object/companion functions (suspend/generic/vararg/
+  default-argument functions and instance methods are rejected at
+  registration). Composition calls via `KFunction.call`; bytecode backends
+  emit a direct `invokeStatic`/`invokeVirtual`.
 - `ext/calculus/` — `Differentiator`: `differentiate(root, by)` applies
   the nodes' `DifferentiableNode` rules (Double-only) and simplifies the
   result; `simplify` folds constants and collapses arithmetic identities,
   passing unknown node classes through unchanged.
 - `ext/StandardSyntax.kt` — preset combining `MathSyntax` + `LogicExtension`
-  + `StringExtension` in that order (so arithmetic `+` wins before concat).
+  + `StringExtension` + `DecimalExtension()` in that order (so arithmetic `+`
+  wins before concat, and decimal's unary minus and decimal function
+  parsers override the math ones — it must come last).
 
 ## Conventions
 

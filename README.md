@@ -139,9 +139,61 @@ shipping.cost(12.5, 800)   // primitive in, primitive out — no map, no boxing
 
 Parameter names must exactly cover the variables used; parameter and return
 types are checked against the expression type at compile time (a wrapper or
-nullable return type is accepted). The generated implementation reads
-arguments from JVM parameter slots directly — this is the variant that
-reaches native performance.
+nullable return type is accepted). Parameters may be primitives, String, or
+any reference type (e.g. a data class — see property access below). The
+generated implementation reads arguments from JVM parameter slots directly —
+this is the variant that reaches native performance.
+
+### Host functions
+
+Register any Kotlin/JVM function and call it from expressions
+(`ext/host`):
+
+```kotlin
+object Pricing {
+    @JvmStatic
+    fun vat(amount: Double): Double = amount * 0.2
+}
+
+val compiler = ExpressionCompiler(
+    StandardSyntax,
+    HostFunctionsExtension("vat" to Pricing::vat),   // or: "vat" to ::topLevelVat
+)
+compiler.compile("vat($price)", varTypes = mapOf("price" to Double::class))
+```
+
+The signature fixes the types: argument count and types and the return type
+are checked at compile time. Both backends call the resolved JVM method
+directly (no per-call reflection on the ASM backend). You can also register
+functions piecemeal via `ExtensionRegistry.registerHostFunction(name, fn)`.
+
+Version 1 supports top-level functions, `@JvmStatic`/Java static methods,
+and object/companion members — instance methods of regular classes are
+rejected at registration. Suspend, generic, vararg and default-argument
+functions are not supported either.
+
+### Property access
+
+`ext/property` adds `$order.total`-style typed property access:
+
+```kotlin
+data class Customer(val name: String, val vip: Boolean)
+data class Order(val total: Double, val customer: Customer)
+
+val compiler = ExpressionCompiler(StandardSyntax, PropertyAccessExtension)
+val expr = compiler.compile(
+    "if($order.customer.vip, $order.total * 0.9, $order.total)",
+    varTypes = mapOf("order" to Order::class),
+)
+expr.eval(MapEvaluationContext(mapOf("order" to Order(42.5, Customer("ann", true)))))   // 38.25
+```
+
+The member is resolved once, at compile time: a Kotlin member property's
+getter first, then `getX()`/`isX()`, then a public field; an unknown member
+is a compile error listing the available properties. Chains work
+(`$order.customer.name`), and interface-typed receivers are supported.
+Because the target's `KClass` is known at compile time, property access
+also works in specialized compilation.
 
 ### Symbolic differentiation
 
@@ -190,13 +242,14 @@ static typing rules, so behavior (results and compile errors) is identical;
 both are exercised by the same test suite.
 
 Compilation results are cached per (source, variable types or target
-interface, backend) through soft references: compiling the same expression
-again returns the same stateless instance while it is reachable, and an
-entry dropped by the garbage collector under memory pressure is simply
-recompiled on demand. In the ASM backend every generated class is defined in
-its own classloader, so an expression that is no longer referenced can be
-unloaded by the garbage collector — dynamically compiled expressions do not
-leak metaspace.
+interface, backend): compiling the same expression again returns the same
+stateless instance. The cache is a bounded LRU (1024 entries per compiler)
+of soft references — under memory pressure or past the bound an entry is
+dropped and simply recompiled on demand, so even unbounded on-the-fly
+expression sources cannot accumulate cache keys forever. In the ASM backend
+every generated class is defined in its own classloader, so an expression
+that is no longer referenced can be unloaded by the garbage collector —
+dynamically compiled expressions do not leak metaspace.
 
 ## Built-in syntax (`StandardSyntax`)
 
@@ -208,6 +261,7 @@ leak metaspace.
 | `123L` | Long |
 | `1.5` | Double |
 | `1.5f`, `123f` | Float |
+| `1.5bd`, `123bd` | BigDecimal |
 | `"text\n"` | String (escapes: `\n` `\t` `\"` `\\`) |
 | `true`, `false` | Boolean |
 | `$name` | variable (type declared at compile time) |
@@ -236,6 +290,21 @@ Brackets `(` `)` group as usual. No implicit conversions anywhere:
 - Double-only: `sqrt`, `pow(a, b)`, `sin`, `cos`, `tan`, `ln`, `log10`,
   `exp`, `floor`, `ceil`, `round` (ties to even, like `kotlin.math.round`).
 - Strings: `length(s)` → Int, `contains(s, sub)` → Boolean.
+- Decimals (`bd` literals): `+ - * / %`, unary `-`, and all six
+  comparisons on BigDecimal operands; `==`/`!=` follow `compareTo`, not
+  `equals` — `1.0bd == 1.00bd` is true. Functions: `toBigDecimal(x)` from
+  Int/Long/Double (string-exact: `toBigDecimal(0.1)` is
+  `BigDecimal("0.1")`, not the raw IEEE-754 expansion) or String;
+  `toInt`/`toLong`/`toFloat`/`toDouble` on decimals (truncating); `abs`,
+  `min`, `max`, `pow(x, n)` (Int `n`), `signum(x)` → Int,
+  `setScale(x, scale)`. `DecimalExtension` takes an extension-level
+  `RoundingMode` applying to `/` and `setScale`: the default
+  `RoundingMode.UNNECESSARY` keeps raw `java.math.BigDecimal` semantics —
+  division by zero and non-terminating division (`1bd / 3bd`) throw
+  `ArithmeticException` at runtime. Pick another mode when adding the
+  extension: `DecimalExtension(RoundingMode.HALF_UP)` makes
+  `1.00bd / 3bd` evaluate to `0.33bd` and `setScale(1.005bd, 2)` to
+  `1.01bd`.
 - Conditional: `if(condition, ifTrue, ifFalse)` — condition must be
   Boolean, branches must share a type; only the chosen branch is evaluated.
 
@@ -251,19 +320,28 @@ extensions:
 
 ```kotlin
 val compiler = ExpressionCompiler(
-    NumberExtension,          // all built-in extensions are objects
+    NumberExtension,          // built-in extensions are objects
+                              // (DecimalExtension is a class — see below)
     ArithmeticExtension,
     BracketExtension,
     MathFunctionsExtension,
     LogicExtension,
     StringExtension,
+    DecimalExtension(),       // must come after ArithmeticExtension and
+                              // MathFunctionsExtension: its unary minus
+                              // and decimal function parsers replace the
+                              // math ones and delegate for non-decimals
     VariableExtension,
 )
 ```
 
 Order matters when two extensions claim the same token: infix parsers are
 tried in registration order (that is why `ArithmeticExtension` precedes
-`StringExtension` — numeric `+` wins, strings fall through to concat).
+`StringExtension` — numeric `+` wins, strings fall through to concat),
+prefix parsers are single-per-token (that is why `DecimalExtension` must
+follow `ArithmeticExtension`), and function parsers are single-per-name
+(that is why it must also follow `MathFunctionsExtension` — the decimal
+variants of `toInt`/`abs`/`min`/... delegate to the math ones).
 
 ## Writing your own extension
 
@@ -362,9 +440,12 @@ core/backend/    ExpressionBackend, SpecializedBackend, CompositionBackend,
 ext/math/        number / operator / bracket / function + MathSyntax preset
 ext/logic/       booleans, comparisons, && || !, if()
 ext/string/      string literals, + concat, length, contains
+ext/decimal/     BigDecimal literals (bd), operators, conversions, functions
+ext/host/        user Kotlin/JVM functions callable from expressions
+ext/property/    typed property access ($order.total)
 ext/variable/    $name variables
 ext/calculus/    symbolic differentiation (Differentiator)
-ext/StandardSyntax.kt   everything above in one preset
+ext/StandardSyntax.kt   math + logic + string + decimal in one preset
 src/jmh/         benchmarks
 ```
 
@@ -376,19 +457,17 @@ src/jmh/         benchmarks
 ./gradlew jmh       # benchmarks -> build/results/jmh/results.txt
 ```
 
-Kotlin 1.9.10, JVM target 17 (via a Gradle toolchain, so compilation is
-independent of the launcher JDK). Use the Gradle wrapper (7.5.1) — newer
-system Gradle is incompatible with the Kotlin plugin version. The Gradle
-daemon itself must run on JDK 21 or older (Gradle 7.5.1 and kapt do not
-support newer JDKs); the compiled library targets JVM 17 and runs on any
-JDK 17+.
+Kotlin 1.9.24, JVM target 17 (via a Gradle toolchain, so compilation is
+independent of the launcher JDK). Use the Gradle wrapper (8.9) — Gradle 9.x
+is incompatible with the Kotlin 1.9.x plugin. The Gradle daemon itself must
+run on JDK 21 or older (kapt does not support newer JDKs); the compiled
+library targets JVM 17 and runs on any JDK 17+.
 
 ### Publishing (maintainer)
 
-The build publishes to Maven Central through the Central Publisher Portal's
-OSSRH Staging API compatibility endpoint (the vanniktech plugin version
-compatible with Gradle 7.5.1 predates native Portal support). One-time
-setup:
+The build publishes to Maven Central through the native Central Publisher
+Portal API (`SonatypeHost.CENTRAL_PORTAL`, vanniktech plugin 0.29.0).
+One-time setup:
 
 1. Create an account at https://central.sonatype.com and verify the
    `io.github.cramen` namespace (via GitHub).
@@ -420,10 +499,14 @@ setup:
    ./gradlew publishAllPublicationsToMavenCentralRepository
    ```
 
-   The plugin uploads the artifacts and closes the staging repository at
-   the end of the build; closing transfers the deployment to the Central
-   Portal, where it appears under https://central.sonatype.com/publishing —
-   review it there and click **Publish** (or **Drop**).
+   The plugin uploads the artifacts to the Central Publisher Portal, where
+   the deployment appears under https://central.sonatype.com/publishing —
+   review it there and click **Publish** (or **Drop**). For a fully
+   non-interactive release (no Portal UI step), use:
+
+   ```bash
+   ./gradlew publishAndReleaseToMavenCentral
+   ```
 
 ## License
 

@@ -384,6 +384,29 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
             )
         }
 
+        override fun invokeInterface(
+            owner: KClass<*>,
+            name: String,
+            argTypes: List<KClass<*>>,
+            resultType: KClass<*>,
+        ) {
+            mv.visitMethodInsn(
+                Opcodes.INVOKEINTERFACE,
+                internalName(owner),
+                name,
+                methodDescriptor(types, argTypes, resultType),
+                true,
+            )
+        }
+
+        override fun getStaticField(owner: KClass<*>, name: String, type: KClass<*>) {
+            mv.visitFieldInsn(Opcodes.GETSTATIC, internalName(owner), name, descriptor(types, type))
+        }
+
+        override fun getField(owner: KClass<*>, name: String, type: KClass<*>) {
+            mv.visitFieldInsn(Opcodes.GETFIELD, internalName(owner), name, descriptor(types, type))
+        }
+
         override fun pop(type: KClass<*>) {
             mv.visitInsn(if (slotSize(types, type) == 2) Opcodes.POP2 else Opcodes.POP)
         }

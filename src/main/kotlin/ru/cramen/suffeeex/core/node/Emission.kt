@@ -91,6 +91,15 @@ interface Emission {
     /** Pops the receiver and [argTypes] arguments, invokes the virtual method, pushes [resultType]. */
     fun invokeVirtual(owner: KClass<*>, name: String, argTypes: List<KClass<*>>, resultType: KClass<*>)
 
+    /** Like [invokeVirtual], but for an interface receiver (INVOKEINTERFACE). */
+    fun invokeInterface(owner: KClass<*>, name: String, argTypes: List<KClass<*>>, resultType: KClass<*>)
+
+    /** GETSTATIC owner.name — e.g. a Kotlin object's INSTANCE field. */
+    fun getStaticField(owner: KClass<*>, name: String, type: KClass<*>)
+
+    /** GETFIELD owner.name — the receiver object is already on the stack. */
+    fun getField(owner: KClass<*>, name: String, type: KClass<*>)
+
     /** Discards the top of the stack (POP or POP2 depending on the type's category). */
     fun pop(type: KClass<*>)
 

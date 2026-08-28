@@ -85,11 +85,16 @@ internal fun specializedSignature(target: KClass<*>): SpecializedSignature {
                     " Java interfaces must be compiled with '-parameters'"
             )
         val javaType = javaMethod.parameterTypes[index]
+        // any reference type is accepted (loaded/stored as an object);
+        // wrappers are not: their Kotlin type maps to a primitive KClass
         val type = PRIMITIVE_CLASS_TO_KCLASS[javaType]
-            ?: if (javaType == String::class.java) String::class else null
+            ?: if (javaType == String::class.java) String::class
+            else if (!javaType.isPrimitive && WRAPPER_CLASS_TO_KCLASS[javaType] == null) javaType.kotlin
+            else null
             ?: throw ExpressionException(
                 "unsupported type of parameter '$name': ${parameter.type};" +
-                    " supported: non-nullable Int, Long, Float, Double, Boolean, String"
+                    " supported: non-nullable Int, Long, Float, Double, Boolean, String," +
+                    " or a reference type (e.g. a data class for property access)"
             )
         val current = slot
         slot += if (type == Long::class || type == Double::class) 2 else 1

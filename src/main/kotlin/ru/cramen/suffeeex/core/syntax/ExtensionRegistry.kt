@@ -22,6 +22,7 @@ class ExtensionRegistry {
     private val literals = mutableMapOf<TokenType, LiteralParser>()
     private val prefixOperators = mutableMapOf<TokenType, PrefixOperatorParser>()
     private val infixOperators = mutableMapOf<TokenType, MutableList<InfixOperatorParser>>()
+    private val memberAccesses = mutableMapOf<TokenType, MemberAccessParser>()
     private val functions = mutableMapOf<String, FunctionParser>()
 
     // Tokens of this type start a function call when immediately followed by
@@ -53,6 +54,10 @@ class ExtensionRegistry {
         infixOperators.getOrPut(parser.tokenType) { mutableListOf() } += parser
     }
 
+    fun registerMemberAccess(parser: MemberAccessParser) {
+        memberAccesses[parser.tokenType] = parser
+    }
+
     fun registerFunction(parser: FunctionParser) {
         functions[parser.name] = parser
     }
@@ -76,6 +81,12 @@ class ExtensionRegistry {
      */
     fun infixOperators(type: TokenType): List<InfixOperatorParser> =
         infixOperators[type] ?: emptyList()
+
+    /**
+     * Member access is checked before infix operators in the parse loop, so
+     * a token type registered as both is treated as member access.
+     */
+    fun memberAccess(type: TokenType): MemberAccessParser? = memberAccesses[type]
 
     fun function(name: String): FunctionParser? = functions[name]
 

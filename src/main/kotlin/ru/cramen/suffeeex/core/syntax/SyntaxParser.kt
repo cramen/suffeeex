@@ -21,6 +21,17 @@ class SyntaxParser(private val registry: ExtensionRegistry) {
     private fun parseExpression(cursor: Cursor, minPrecedence: Int, varTypes: Map<String, KClass<*>>): TypedNode {
         var left = parsePrimary(cursor, varTypes)
         while (cursor.hasNext()) {
+            val memberAccess = registry.memberAccess(cursor.peek().type)
+            if (memberAccess != null) {
+                // member access binds tighter than any infix operator and is
+                // checked first: a token type registered as both is member access
+                val dot = cursor.next()
+                if (!cursor.hasNext()) {
+                    throw ExpressionException("expected a member name after '${dot.value}' at position ${dot.position}")
+                }
+                left = memberAccess.compile(left, cursor.next())
+                continue
+            }
             val infixes = registry.infixOperators(cursor.peek().type)
             if (infixes.isEmpty()) break
             val first = infixes.first()
