@@ -149,7 +149,9 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   registered), and if all fail the first exception is rethrown.
   `MemberAccessParser` (e.g. `.`) consumes the member name as a raw token,
   not an expression, binds tighter than any infix operator, and is checked
-  before infix — a token type registered as both is member access.
+  before infix — a token type registered as both is member access. Its
+  optional `suggestMembers(targetType)` hook (default empty) lists the
+  members of a target type for tooling (e.g. the suggester).
   Read-only enumeration accessors (`allFunctions()`, `literalTypes()`,
   `prefixTypes()`, `infixTypes()`, `memberAccessTypes()`) expose the
   registrations to tooling.
@@ -242,10 +244,15 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   provides the generic hooks: `TokenParser.hints()`, the registry
   enumeration accessors, and the public `ExpressionCompiler.registry`).
   Pragmatic v1 without an error-recovery parser: the identifier fragment at
-  the cursor filters candidates by prefix, and the last committed token
-  classifies the position (operand vs after-operand); hints are attributed
-  to syntactic roles by tokenizing each hint and checking which parser kind
-  is registered for its token type.
+  the cursor filters candidates case-insensitively (case-exact prefix matches
+  rank first, then kind order, then alphabetical), and the last committed
+  token classifies the position (operand vs after-operand); hints are
+  attributed to syntactic roles by tokenizing each hint and checking which
+  parser kind is registered for its token type. After `$var.` with `var`
+  declared in `varTypes`, member completion kicks in: the member access
+  parser's `suggestMembers` supplies the members of the variable's type
+  (direct `$var.` receiver only — chains like `$order.customer.` are not
+  resolved).
 
 ## Conventions
 

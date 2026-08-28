@@ -35,6 +35,9 @@ interface InfixOperatorParser {
 interface MemberAccessParser {
     val tokenType: TokenType
     fun compile(target: TypedNode, member: Token): TypedNode
+
+    /** Names of members available on [targetType] — used by tooling (e.g. autocompletion). */
+    fun suggestMembers(targetType: KClass<*>): List<String> = emptyList()
 }
 
 interface FunctionParser {

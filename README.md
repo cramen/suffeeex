@@ -48,18 +48,30 @@ JMH benchmark (`./gradlew jmh`), average time per single evaluation, ns/op
 "Specialized" compiles the expression against a user fun interface, so
 variables arrive as plain method parameters (see below).
 
+The absolute numbers below come from one specific machine (Apple Silicon,
+arm64, JDK 21) and will differ on yours — what transfers across machines
+is the *ratio* between the columns, not the nanoseconds. Run
+`./gradlew jmh` locally for your own baseline.
+
 | Expression | Composition | ASM (default) | Specialized | Native |
 |---|---:|---:|---:|---:|
 | `2L + 3L*$a - 10L/$b` | 64.6 | 32.2 | **28.9** | 27.1 |
 | `abs($x - 5L) * 2L` | 66.4 | 30.6 | **27.5** | 27.2 |
 | `sqrt(pow($a,2.0)+pow($b,2.0))` | 127.9 | 32.8 | 35.2 | 27.4 |
 | `2 + 3 * 4` (no variables) | 7.6 | 0.86 | — | 0.86 |
+| `$order.total * 2.0` (property access) | 24.9 | 12.8 | **10.5** | 13.8 |
+| `vat($price, 0.2)` (host function) | 130.1 | 14.2 | **10.4** | 10.1 |
 
 Bytecode generation is 2–4× faster than the composition backend and lands
 within a few percent of hand-written Kotlin; the specialized variant is
 statistically indistinguishable from native on integer arithmetic. Creating
 a fresh `MapEvaluationContext` per call costs ~30 ns — reuse contexts in hot
 paths, or use specialized compilation and skip the context entirely.
+Property getters and static host functions are emitted as plain
+`INVOKEVIRTUAL`/`INVOKESTATIC`, so on the ASM backend they run at native
+speed (specialized is within noise of native); on the composition backend a
+host call goes through reflective `KFunction.call`, which dominates its
+~130 ns.
 
 ## Getting it
 
@@ -212,7 +224,12 @@ compiler.suggest("1 + ") // functions, variables, true/false, '(', '-', ...
 `Suggestion(text, kind, detail)` items — functions with a synthetic
 signature detail, variables from `varTypes` as `$name`, literal keywords,
 operators, brackets and member access — filtered by the identifier fragment
-being typed at the cursor. Suggestions are registry-driven: a function or
+being typed at the cursor (case-insensitively; case-exact prefix matches
+rank first). After `$var.` with `var` declared in `varTypes`, the members of
+its type are suggested instead, via the member access parser's
+`suggestMembers` hook — `PropertyAccessExtension` implements it, so
+`$order.` offers `total`, `customer`, etc. (a direct `$var.` receiver only;
+chains are not resolved). Suggestions are registry-driven: a function or
 operator registered by your own extension appears automatically, with no
 extra wiring.
 

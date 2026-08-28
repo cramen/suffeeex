@@ -16,6 +16,10 @@ Breaking changes are listed explicitly.
   registry-driven autocomplete — functions, operators and keywords from any
   registered extension appear automatically via the new `TokenParser.hints()`
   hook. `ExpressionCompiler.registry` is now public to enable such tooling.
+  Member completion: after `$var.`, property names of the variable's type
+  are suggested via the new optional `MemberAccessParser.suggestMembers`
+  hook (implemented by `PropertyAccessExtension`). Filtering is
+  case-insensitive with case-exact matches ranked first.
 
 ## 0.2.0
 

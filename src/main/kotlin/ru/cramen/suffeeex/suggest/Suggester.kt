@@ -30,9 +30,11 @@ private val TAIL_REGEX = Regex("(\\\$[A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_]*)$")
  * last committed token classifies the cursor position as OPERAND (an operand
  * is expected: functions, variables, literal keywords, prefix operators,
  * `(`), AFTER-OPERAND (an operator is expected: infix operators, `)`, `,`,
- * member access `.`), or AMBIGUOUS (union of both). Results are ordered by
- * [SuggestionKind] declaration order (functions first), deduplicated by
- * (text, kind).
+ * member access `.`), or AMBIGUOUS (union of both). After `$var.` the member
+ * access parser's `suggestMembers` supplies the members of the variable's
+ * declared type instead. The tail match is case-insensitive; results are
+ * ordered case-exact prefix matches first, then [SuggestionKind] declaration
+ * order (functions first), then alphabetical — deduplicated by (text, kind).
  */
 class Suggester(private val registry: ExtensionRegistry) {
     private val tokenizer = Tokenizer(registry.tokenParsers)
@@ -67,12 +69,26 @@ class Suggester(private val registry: ExtensionRegistry) {
             // unknown committed context: identifier categories only
             return filter(identifierCandidates(varTypes), tail)
         }
-        val candidates = when (positionOf(tokens)) {
+        val candidates = memberCompletion(tokens, varTypes) ?: when (positionOf(tokens)) {
             Position.OPERAND -> operandCandidates(varTypes)
             Position.AFTER_OPERAND -> afterOperandCandidates()
             Position.AMBIGUOUS -> operandCandidates(varTypes) + afterOperandCandidates()
         }
         return filter(candidates, tail)
+    }
+
+    /**
+     * Member completion after `$var.`: the last committed token is a member
+     * access and the token before it is a declared variable. v1 resolves only
+     * a direct variable receiver — chains (`$order.customer.`) are out of scope.
+     */
+    private fun memberCompletion(tokens: List<Token>, varTypes: Map<String, KClass<*>>): List<Suggestion>? {
+        val last = tokens.lastOrNull() ?: return null
+        val parser = registry.memberAccess(last.type) ?: return null
+        val receiver = tokens.getOrNull(tokens.size - 2)?.value ?: return null
+        if (!receiver.startsWith("$")) return null
+        val type = varTypes[receiver.substring(1)] ?: return null
+        return parser.suggestMembers(type).map { Suggestion(it, SuggestionKind.MEMBER) }
     }
 
     private fun positionOf(tokens: List<Token>): Position {
@@ -163,9 +179,15 @@ class Suggester(private val registry: ExtensionRegistry) {
 
     private fun filter(candidates: List<Suggestion>, tail: String): List<Suggestion> =
         candidates
-            .filter { it.text.startsWith(tail) }
+            .filter { it.text.startsWith(tail, ignoreCase = true) }
             .distinctBy { it.text to it.kind }
-            .sortedBy { it.kind.ordinal }
+            .sortedWith(
+                compareBy<Suggestion>(
+                    { if (it.text.startsWith(tail)) 0 else 1 }, // case-exact prefix first
+                    { it.kind.ordinal },
+                    { it.text },
+                )
+            )
 }
 
 /**

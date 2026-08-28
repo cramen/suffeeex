@@ -75,11 +75,11 @@ private fun resolveAccessor(targetType: KClass<*>, member: String): PropertyAcce
         ?.let { return PropertyAccessor.JavaField(it) }
     throw ExpressionException(
         "unknown property '$member' on ${targetType.simpleName}:" +
-            " available properties are ${availableProperties(targetType)}"
+            " available properties are ${availableProperties(targetType).joinToString()}"
     )
 }
 
-private fun availableProperties(targetType: KClass<*>): String {
+private fun availableProperties(targetType: KClass<*>): List<String> {
     val names = sortedSetOf<String>()
     names += targetType.memberProperties.map { it.name }
     for (method in targetType.java.methods) {
@@ -92,7 +92,7 @@ private fun availableProperties(targetType: KClass<*>): String {
         }
     }
     names += targetType.java.fields.map { it.name }
-    return names.joinToString()
+    return names.toList()
 }
 
 object PropertyAccessExtension : SyntaxExtension {
@@ -111,6 +111,10 @@ object PropertyAccessExtension : SyntaxExtension {
                 val accessor = resolveAccessor(target.type, member.value)
                 return PropertyNode(target, accessor, accessor.type)
             }
+
+            // same member set the compiler path resolves against; primitives have none
+            override fun suggestMembers(targetType: KClass<*>): List<String> =
+                if (targetType.java.isPrimitive) emptyList() else availableProperties(targetType)
         })
     }
 }

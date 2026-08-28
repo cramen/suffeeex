@@ -77,6 +77,50 @@ class SuggesterTest {
         suggestion.kind shouldBe SuggestionKind.MEMBER
     }
 
+    private data class Order(val total: Double, val customer: String)
+
+    private val propertySuggester = Suggester(ExpressionCompiler(StandardSyntax, PropertyAccessExtension).registry)
+    private val orderVarTypes = mapOf("order" to Order::class)
+
+    @Test
+    fun `after a variable dot the members of its type are suggested`() {
+        val suggestions = propertySuggester.suggest("\$order.", varTypes = orderVarTypes)
+        val texts = texts(suggestions)
+        texts shouldContain "total"
+        texts shouldContain "customer"
+        suggestions.first { it.text == "total" }.kind shouldBe SuggestionKind.MEMBER
+        // only members, no other candidates
+        suggestions.all { it.kind == SuggestionKind.MEMBER } shouldBe true
+    }
+
+    @Test
+    fun `member completion is filtered by the tail`() {
+        texts(propertySuggester.suggest("\$order.t", varTypes = orderVarTypes)) shouldBe listOf("total")
+    }
+
+    @Test
+    fun `member completion is absent without a member access extension`() {
+        texts(suggester.suggest("\$order.", varTypes = orderVarTypes)) shouldNotContain "total"
+    }
+
+    @Test
+    fun `member completion requires a declared variable receiver`() {
+        texts(propertySuggester.suggest("\$unknown.")) shouldNotContain "total"
+    }
+
+    @Test
+    fun `tail matching is case-insensitive`() {
+        val texts = texts(suggester.suggest("CO"))
+        texts shouldContain "cos"
+        texts shouldContain "contains"
+    }
+
+    @Test
+    fun `case-exact prefix matches rank before case-mismatched ones`() {
+        val varTypes = mapOf("Cabin" to Int::class, "cat" to Int::class)
+        texts(suggester.suggest("\$c", varTypes = varTypes)) shouldBe listOf("\$cat", "\$Cabin")
+    }
+
     @Test
     fun `inside a string literal there are no suggestions`() {
         suggester.suggest("\"ab").shouldBeEmpty()
