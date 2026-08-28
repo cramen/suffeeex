@@ -195,6 +195,27 @@ is a compile error listing the available properties. Chains work
 Because the target's `KClass` is known at compile time, property access
 also works in specialized compilation.
 
+### Input suggestions
+
+The `suggest` package builds expression-input autocomplete on top of the
+same extension registry that drives parsing:
+
+```kotlin
+import ru.cramen.suffeeex.suggest.suggest
+
+val compiler = ExpressionCompiler(StandardSyntax)
+compiler.suggest("co")   // cos(arg1), contains(arg1, arg2), ...
+compiler.suggest("1 + ") // functions, variables, true/false, '(', '-', ...
+```
+
+`suggest(source, cursor = source.length, varTypes = emptyMap())` returns
+`Suggestion(text, kind, detail)` items — functions with a synthetic
+signature detail, variables from `varTypes` as `$name`, literal keywords,
+operators, brackets and member access — filtered by the identifier fragment
+being typed at the cursor. Suggestions are registry-driven: a function or
+operator registered by your own extension appears automatically, with no
+extra wiring.
+
 ### Symbolic differentiation
 
 The typed tree can be differentiated symbolically before compilation:
@@ -469,51 +490,6 @@ independent of the launcher JDK). Use the Gradle wrapper (8.9) — Gradle 9.x
 is incompatible with the Kotlin 1.9.x plugin. The Gradle daemon itself must
 run on JDK 21 or older (kapt does not support newer JDKs); the compiled
 library targets JVM 17 and runs on any JDK 17+.
-
-### Publishing (maintainer)
-
-The build publishes to Maven Central through the native Central Publisher
-Portal API (`SonatypeHost.CENTRAL_PORTAL`, vanniktech plugin 0.29.0).
-One-time setup:
-
-1. Create an account at https://central.sonatype.com and verify the
-   `io.github.cramen` namespace (via GitHub).
-2. Generate a user token: Account → Generate User Token.
-3. Create a GPG key and publish it to a keyserver (e.g.
-   `gpg --keyserver keys.openpgp.org --send-keys <keyId>`).
-4. Put credentials in `~/.gradle/gradle.properties` (never in the repo):
-
-   ```properties
-   mavenCentralUsername=<portal token username>
-   mavenCentralPassword=<portal token password>
-   # either a key ring:
-   signing.keyId=<short key id>
-   signing.password=<key passphrase>
-   signing.secretKeyRingFile=/path/to/secring.gpg
-   # or an in-memory armored key:
-   # signing.keyId=<short key id>
-   # signing.password=<key passphrase>
-   # signing.secretKey=<ascii-armored private key>
-   ```
-
-   Signing activates automatically when the `signing.*` properties are
-   present; without them every task (including `publishToMavenLocal`)
-   works unsigned.
-
-5. Release:
-
-   ```bash
-   ./gradlew publishAllPublicationsToMavenCentralRepository
-   ```
-
-   The plugin uploads the artifacts to the Central Publisher Portal, where
-   the deployment appears under https://central.sonatype.com/publishing —
-   review it there and click **Publish** (or **Drop**). For a fully
-   non-interactive release (no Portal UI step), use:
-
-   ```bash
-   ./gradlew publishAndReleaseToMavenCentral
-   ```
 
 ## License
 

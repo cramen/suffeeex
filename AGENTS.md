@@ -46,6 +46,28 @@ A Kotlin/JVM library for parsing and evaluating expressions.
   `signing.*` GPG properties in `~/.gradle/gradle.properties`; without
   `signing.*` everything (incl. `publishToMavenLocal`) works unsigned.
 
+  One-time maintainer setup:
+
+  1. Account at https://central.sonatype.com + verified `io.github.cramen`
+     namespace (via GitHub).
+  2. User token: Account → Generate User Token.
+  3. GPG key published to a keyserver
+     (`gpg --keyserver keys.openpgp.org --send-keys <keyId>`).
+  4. In `~/.gradle/gradle.properties` (never in the repo):
+
+     ```properties
+     mavenCentralUsername=<portal token username>
+     mavenCentralPassword=<portal token password>
+     # either a key ring:
+     signing.keyId=<short key id>
+     signing.password=<key passphrase>
+     signing.secretKeyRingFile=/path/to/secring.gpg
+     # or an in-memory armored key:
+     # signing.keyId=<short key id>
+     # signing.password=<key passphrase>
+     # signing.secretKey=<ascii-armored private key>
+     ```
+
 Build notes:
 
 - Use the wrapper (`./gradlew`, Gradle 8.9). Gradle 9.x fails against the
@@ -113,7 +135,10 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   index-based context in composition.
 - `core/token/` — tokenizer + token parsers (`TokenParser`,
   `SimpleTokenParser`, `SimpleMultiTokenParser`, `RegexpTokenParser`,
-  priorities in `Priorities.kt`).
+  priorities in `Priorities.kt`). `TokenParser.hints()` enumerates the
+  literal token strings a parser can produce (empty by default; the simple
+  parsers return their token strings, regex parsers stay empty) — the hook
+  tooling like the suggester uses.
 - `core/syntax/` — Pratt parser engine (`SyntaxParser`, produces
   `TypedNode`), `ExtensionRegistry` and the extension points:
   `LiteralParser`, `PrefixOperatorParser`, `InfixOperatorParser`,
@@ -125,6 +150,9 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   `MemberAccessParser` (e.g. `.`) consumes the member name as a raw token,
   not an expression, binds tighter than any infix operator, and is checked
   before infix — a token type registered as both is member access.
+  Read-only enumeration accessors (`allFunctions()`, `literalTypes()`,
+  `prefixTypes()`, `infixTypes()`, `memberAccessTypes()`) expose the
+  registrations to tooling.
 - `core/ExpressionCompiler.kt` — `ExpressionCompiler(vararg extensions)`;
   `compile(source, varTypes = emptyMap(), backend = AsmBackend)`
   returns a ready `Expression`. `$name` variable types
@@ -142,7 +170,9 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   compile. `parseTree(source, varTypes)` exposes the raw
   tokenize→parse pipeline and `compileTree(root, backend)` compiles an
   existing tree; neither is cached. All compile paths pass the registry's
-  scoped `typeEmissions` to the backend.
+  scoped `typeEmissions` to the backend. `registry` is public so tooling
+  (e.g. the suggester) can be driven by the same extension configuration
+  without core depending on it.
 - `ext/math/` — `number` (typed literals, `NumberLiteralNode`: decimal with
   exponent and digit underscores, hex, binary — Kotlin typing rules), `operator`
   (same-type arithmetic, `BinaryArithmeticNode` + `NegationNode`),
@@ -206,6 +236,16 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   + `StringExtension` + `DecimalExtension()` in that order (so arithmetic `+`
   wins before concat, and decimal's unary minus and decimal function
   parsers override the math ones — it must come last).
+- `suggest/` — registry-driven input autocomplete: `Suggester(registry)`
+  and the `ExpressionCompiler.suggest(source, cursor, varTypes)` extension
+  (declared here so core never depends on the suggest package — core only
+  provides the generic hooks: `TokenParser.hints()`, the registry
+  enumeration accessors, and the public `ExpressionCompiler.registry`).
+  Pragmatic v1 without an error-recovery parser: the identifier fragment at
+  the cursor filters candidates by prefix, and the last committed token
+  classifies the position (operand vs after-operand); hints are attributed
+  to syntactic roles by tokenizing each hint and checking which parser kind
+  is registered for its token type.
 
 ## Conventions
 
