@@ -143,7 +143,8 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   tokenize→parse pipeline and `compileTree(root, backend)` compiles an
   existing tree; neither is cached. All compile paths pass the registry's
   scoped `typeEmissions` to the backend.
-- `ext/math/` — `number` (typed literals, `NumberLiteralNode`), `operator`
+- `ext/math/` — `number` (typed literals, `NumberLiteralNode`: decimal with
+  exponent and digit underscores, hex, binary — Kotlin typing rules), `operator`
   (same-type arithmetic, `BinaryArithmeticNode` + `NegationNode`),
   `bracket` (`( ) ,`), `function` (`ConvertNumericNode`, `MathFunctionNode`;
   conversions, typed `abs`/`min`/`max`, Double-only sqrt/pow/trig/etc. —
@@ -155,7 +156,11 @@ are a compile error; use `toInt`/`toLong`/`toFloat`/`toDouble` to convert.
   `==`/`!=` (numeric, String, Boolean), and lazy `if(cond, a, b)`.
 - `ext/string/` — `StringExtension`: string literals with minimal escapes,
   `+` concat (a second `InfixOperatorParser` on the math `+` token, tried
-  after arithmetic), `length`, `contains` (emitted as `indexOf >= 0`).
+  after arithmetic), and functions `length`, `contains` (emitted as
+  `indexOf >= 0`), `matches` (whole-string regex), `startsWith`/`endsWith`,
+  `indexOf`, `substring`, `replace` (literal via the CharSequence overload),
+  `toUpperCase`/`toLowerCase` (Locale.ROOT), `trim` (Java trim semantics on
+  both backends).
 - `ext/property/` — `PropertyAccessExtension`: typed property access
   `$order.total` via a `.` `MemberAccessParser` (LOW token priority, so the
   number literal regex still wins for `1.5`). The member is resolved at

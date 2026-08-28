@@ -100,4 +100,124 @@ internal class NumberExtensionTest {
             }
         }
     }
+
+    @Test
+    fun `exponent literal is Double`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("1e3", backend = backend).eval(context) shouldBe 1000.0
+                compiler.compile("1.5e-3", backend = backend).eval(context) shouldBe 0.0015
+                compiler.compile("1E+3", backend = backend).eval(context) shouldBe 1000.0
+            }
+        }
+    }
+
+    @Test
+    fun `exponent literal with f suffix is Float`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("1e3f", backend = backend).eval(context) shouldBe 1000.0f
+                compiler.compile("1.5e-2F", backend = backend).eval(context) shouldBe 0.015f
+            }
+        }
+    }
+
+    @Test
+    fun `L suffix on an exponent literal is a compile error`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                shouldThrow<ExpressionException> { compiler.compile("1e3L", backend = backend) }
+                shouldThrow<ExpressionException> { compiler.compile("1e3l", backend = backend) }
+            }
+        }
+    }
+
+    @Test
+    fun `underscores between digits are ignored`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("1_000_000", backend = backend).eval(context) shouldBe 1000000
+                compiler.compile("1_000.5", backend = backend).eval(context) shouldBe 1000.5
+                compiler.compile("1_0e2", backend = backend).eval(context) shouldBe 1000.0
+                compiler.compile("1_000_000L", backend = backend).eval(context) shouldBe 1000000L
+            }
+        }
+    }
+
+    @Test
+    fun `hex literal is Int`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("0xFF", backend = backend).eval(context) shouldBe 255
+                compiler.compile("0Xff", backend = backend).eval(context) shouldBe 255
+                compiler.compile("0xFF_EC", backend = backend).eval(context) shouldBe 65516
+            }
+        }
+    }
+
+    @Test
+    fun `hex literal with L suffix is Long`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("0xFFL", backend = backend).eval(context) shouldBe 255L
+            }
+        }
+    }
+
+    @Test
+    fun `hex literal overflowing Int is Long`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("0xFFFFFFFF", backend = backend).eval(context) shouldBe 4294967295L
+            }
+        }
+    }
+
+    @Test
+    fun `hex literal beyond Long is a compile error`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                shouldThrow<ExpressionException> { compiler.compile("0x10000000000000000", backend = backend) }
+            }
+        }
+    }
+
+    @Test
+    fun `binary literal is Int`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("0b101", backend = backend).eval(context) shouldBe 5
+                compiler.compile("0B101", backend = backend).eval(context) shouldBe 5
+            }
+        }
+    }
+
+    @Test
+    fun `binary literal with L suffix is Long`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("0b101L", backend = backend).eval(context) shouldBe 5L
+            }
+        }
+    }
+
+    @Test
+    fun `binary literal overflowing Int is Long`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                compiler.compile("0b10000000000000000000000000000000", backend = backend).eval(context) shouldBe 2147483648L
+            }
+        }
+    }
+
+    @Test
+    fun `malformed literals are compile errors`() {
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue(name) {
+                shouldThrow<ExpressionException> { compiler.compile("1__000", backend = backend) }
+                shouldThrow<ExpressionException> { compiler.compile("0x", backend = backend) }
+                shouldThrow<ExpressionException> { compiler.compile("1e", backend = backend) }
+            }
+        }
+    }
 }

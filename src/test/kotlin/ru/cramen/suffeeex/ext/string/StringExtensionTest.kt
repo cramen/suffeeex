@@ -124,4 +124,117 @@ internal class StringExtensionTest {
             shouldThrow<ExpressionException> { eval("contains(\"a\", 1)", backend) }
         }
     }
+
+    @Test
+    fun `matches whole string`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("matches(\"abc\", \"a.c\")", backend) shouldBe true
+            eval("matches(\"abc\", \"b\")", backend) shouldBe false
+            eval("matches(\"abc\", \"[a-z]+\")", backend) shouldBe true
+        }
+    }
+
+    @Test
+    fun `startsWith and endsWith`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("startsWith(\"hello\", \"he\")", backend) shouldBe true
+            eval("startsWith(\"hello\", \"lo\")", backend) shouldBe false
+            eval("endsWith(\"hello\", \"lo\")", backend) shouldBe true
+            eval("endsWith(\"hello\", \"he\")", backend) shouldBe false
+        }
+    }
+
+    @Test
+    fun `indexOf found and missing`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("indexOf(\"hello\", \"ll\")", backend) shouldBe 2
+            eval("indexOf(\"hello\", \"z\")", backend) shouldBe -1
+        }
+    }
+
+    @Test
+    fun `substring with begin only`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("substring(\"hello\", 2)", backend) shouldBe "llo"
+        }
+    }
+
+    @Test
+    fun `substring with begin and end`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("substring(\"hello\", 1, 4)", backend) shouldBe "ell"
+        }
+    }
+
+    @Test
+    fun `replace is literal not regex`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            // a regex replace would treat "." as any char; literal replace keeps "a-b"
+            eval("replace(\"a.b\", \".\", \"-\")", backend) shouldBe "a-b"
+            eval("replace(\"aaa\", \"a\", \"bb\")", backend) shouldBe "bbbbbb"
+        }
+    }
+
+    @Test
+    fun `toUpperCase and toLowerCase are locale-independent`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            // Turkish-i sanity: Locale.ROOT maps "i" to ASCII "I", not the dotted İ
+            eval("toUpperCase(\"i\")", backend) shouldBe "I"
+            eval("toUpperCase(\"abc\")", backend) shouldBe "ABC"
+            eval("toLowerCase(\"I\")", backend) shouldBe "i"
+            eval("toLowerCase(\"ABC\")", backend) shouldBe "abc"
+        }
+    }
+
+    @Test
+    fun `trim removes java whitespace`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("trim(\"  hi  \")", backend) shouldBe "hi"
+            eval("trim(\"\\t hi \\n\")", backend) shouldBe "hi"
+        }
+    }
+
+    @Test
+    fun `substring with string index is a compile error`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            shouldThrow<ExpressionException> { eval("substring(\"a\", \"b\")", backend) }
+            shouldThrow<ExpressionException> { eval("substring(\"a\", 0, \"b\")", backend) }
+            shouldThrow<ExpressionException> { eval("substring(1, 0)", backend) }
+        }
+    }
+
+    @Test
+    fun `matches with number argument is a compile error`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            shouldThrow<ExpressionException> { eval("matches(\"a\", 1)", backend) }
+        }
+    }
+
+    @Test
+    fun `startsWith with number argument is a compile error`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            shouldThrow<ExpressionException> { eval("startsWith(\"a\", 1)", backend) }
+        }
+    }
+
+    @Test
+    fun `replace with number argument is a compile error`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            shouldThrow<ExpressionException> { eval("replace(\"a\", \"a\", 1)", backend) }
+        }
+    }
+
+    @Test
+    fun `toUpperCase with number argument is a compile error`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            shouldThrow<ExpressionException> { eval("toUpperCase(1)", backend) }
+        }
+    }
+
+    @Test
+    fun `trim with number argument is a compile error`() {
+        for ((_, backend) in ALL_BACKENDS) {
+            shouldThrow<ExpressionException> { eval("trim(1)", backend) }
+        }
+    }
 }

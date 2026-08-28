@@ -261,6 +261,9 @@ dynamically compiled expressions do not leak metaspace.
 | `123L` | Long |
 | `1.5` | Double |
 | `1.5f`, `123f` | Float |
+| `1e3`, `1.5e-3` | Double (`1e3f` → Float) |
+| `1_000_000` | underscores ignored, typed as without them |
+| `0xFF`, `0b101` | Int (Long on overflow; `0xFFL` → Long) |
 | `1.5bd`, `123bd` | BigDecimal |
 | `"text\n"` | String (escapes: `\n` `\t` `\"` `\\`) |
 | `true`, `false` | Boolean |
@@ -289,7 +292,11 @@ Brackets `(` `)` group as usual. No implicit conversions anywhere:
   `max(a, b)` — Int/Long/Float/Double, all args same type.
 - Double-only: `sqrt`, `pow(a, b)`, `sin`, `cos`, `tan`, `ln`, `log10`,
   `exp`, `floor`, `ceil`, `round` (ties to even, like `kotlin.math.round`).
-- Strings: `length(s)` → Int, `contains(s, sub)` → Boolean.
+- Strings: `length(s)` → Int, `contains(s, sub)`, `startsWith(s, prefix)`,
+  `endsWith(s, suffix)` → Boolean, `indexOf(s, sub)` → Int,
+  `substring(s, begin[, end])`, `replace(s, from, to)` (literal, not regex),
+  `toUpperCase(s)`, `toLowerCase(s)` (locale-independent, `Locale.ROOT`),
+  `trim(s)`, `matches(s, pattern)` — whole-string regex match.
 - Decimals (`bd` literals): `+ - * / %`, unary `-`, and all six
   comparisons on BigDecimal operands; `==`/`!=` follow `compareTo`, not
   `equals` — `1.0bd == 1.00bd` is true. Functions: `toBigDecimal(x)` from
