@@ -10,7 +10,6 @@ import ru.cramen.suffeeex.core.syntax.SyntaxExtension
 import ru.cramen.suffeeex.core.syntax.SyntaxParser
 import ru.cramen.suffeeex.core.token.Tokenizer
 import java.lang.ref.SoftReference
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 
 class ExpressionCompiler(private val registry: ExtensionRegistry) {
@@ -32,9 +31,32 @@ class ExpressionCompiler(private val registry: ExtensionRegistry) {
     // compiled expressions are stateless, so the same key can safely share
     // one instance (and one generated class) across all callers; soft
     // references let the GC drop entries (with their classloaders) under
-    // memory pressure — the next compile simply regenerates them
-    private val expressionCache = ConcurrentHashMap<ExpressionCacheKey, SoftReference<Expression>>()
-    private val specializedCache = ConcurrentHashMap<SpecializedCacheKey, SoftReference<Any>>()
+    // memory pressure — the next compile simply regenerates them; the LRU
+    // bound keeps keys and cleared wrappers from accumulating when
+    // expression sources are unbounded (e.g. generated on the fly)
+    private val expressionCache = SoftLruCache<ExpressionCacheKey, Expression>()
+    private val specializedCache = SoftLruCache<SpecializedCacheKey, Any>()
+
+    /**
+     * A small thread-safe LRU cache with soft-referenced values: cleared
+     * entries are dropped and recomputed on access, and the eldest entry is
+     * evicted once [maxSize] is exceeded, so unbounded distinct sources
+     * cannot accumulate keys forever.
+     */
+    private class SoftLruCache<K, V : Any>(private val maxSize: Int = 1024) {
+        private val map = object : LinkedHashMap<K, SoftReference<V>>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, SoftReference<V>>): Boolean =
+                size > maxSize
+        }
+
+        @Synchronized
+        fun computeLive(key: K, mapping: (K) -> V): V {
+            map[key]?.get()?.let { return it }
+            val value = mapping(key)
+            map[key] = SoftReference(value)
+            return value
+        }
+    }
 
     constructor(vararg extensions: SyntaxExtension) : this(
         ExtensionRegistry().also { registry -> extensions.forEach { it.register(registry) } }
@@ -42,11 +64,11 @@ class ExpressionCompiler(private val registry: ExtensionRegistry) {
 
     /**
      * Compiles [source] into a ready [Expression]. Results are cached by
-     * (source, varTypes, backend) through soft references: compiling the same
-     * key twice returns the same instance (compiled expressions are
-     * stateless) as long as it is strongly reachable or memory is not under
-     * pressure; after the GC clears an entry, the next compile regenerates
-     * it. [parseTree] and [compileTree] are not cached.
+     * (source, varTypes, backend): compiling the same key twice returns the
+     * same instance (compiled expressions are stateless). The cache is a
+     * bounded LRU (1024 entries) of soft references — under memory pressure
+     * or past the bound an entry is dropped, and the next compile simply
+     * regenerates it. [parseTree] and [compileTree] are not cached.
      */
     fun compile(
         source: String,
@@ -73,9 +95,10 @@ class ExpressionCompiler(private val registry: ExtensionRegistry) {
      * the single abstract method's parameters are the expression variables
      * (by name), its return type must match the expression type (a primitive
      * or its wrapper are both accepted). Cached by (source, target, backend)
-     * through soft references: compiling the same key twice returns the same
-     * instance while it is reachable; a GC'd entry is regenerated on the next
-     * compile.
+     * with the same bounded-LRU + soft-reference semantics as the other
+     * [compile] overload: compiling the same key twice returns the same
+     * instance while it is reachable and within the cache bound; a dropped
+     * entry is regenerated on the next compile.
      */
     fun <T : Any> compile(
         source: String,
@@ -89,22 +112,6 @@ class ExpressionCompiler(private val registry: ExtensionRegistry) {
         return specializedCache.computeLive(SpecializedCacheKey(source, target, backend)) {
             compileSpecialized(source, target, backend)
         } as T
-    }
-
-    /**
-     * Cache lookup that never serves a cleared soft reference: a cleared
-     * entry is dropped and recomputed.
-     */
-    private fun <K, V : Any> ConcurrentHashMap<K, SoftReference<V>>.computeLive(
-        key: K,
-        mapping: (K) -> V,
-    ): V {
-        while (true) {
-            val reference = computeIfAbsent(key) { SoftReference(mapping(it)) }
-            reference.get()?.let { return it }
-            // cleared before we could read it: remove if still this entry, then retry
-            remove(key, reference)
-        }
     }
 
     private fun <T : Any> compileSpecialized(

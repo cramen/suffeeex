@@ -91,6 +91,15 @@ internal class CompileCacheTest {
         compiler.compileTree(root) shouldNotBeSameInstanceAs compiler.compileTree(root)
     }
 
+    @Test
+    fun `cache is bounded - the eldest entry is evicted past the limit even when strongly held`() {
+        val held = compiler.compile("1 + 0")
+        // the cache keeps at most 1024 entries; adding more distinct sources
+        // evicts the eldest key regardless of the value's reachability
+        repeat(1100) { compiler.compile("1 + ${it + 1}") }
+        compiler.compile("1 + 0") shouldNotBeSameInstanceAs held
+    }
+
     private fun compile(source: String, varTypes: Map<String, KClass<*>> = emptyMap()) =
         compiler.compile(source, varTypes)
 }
