@@ -1,5 +1,8 @@
 # suffeeex
 
+[![CI](https://github.com/cramen/suffeeex/actions/workflows/ci.yml/badge.svg)](https://github.com/cramen/suffeeex/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.cramen/suffeeex)](https://central.sonatype.com/artifact/io.github.cramen/suffeeex)
+
 **super fast extensible expression executor framework**
 
 A Kotlin/JVM library that parses expression strings into ready-to-run,
