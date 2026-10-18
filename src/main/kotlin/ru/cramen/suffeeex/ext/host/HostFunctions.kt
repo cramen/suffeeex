@@ -113,11 +113,15 @@ private class HostFunctionParser(
         instanceField = receiver?.let { instance ->
             // plain objects expose INSTANCE on their own class; the companion
             // singleton lives in a static field (named after the companion)
-            // on the enclosing class — resolve it instead of guessing
+            // on the enclosing class — resolve it instead of guessing.
+            // Prefer referential equality (===) for Kotlin objects, fallback to
+            // structural equality (==) for Java static fields or reflection.
             val field = generateSequence(declaringClass) { it.enclosingClass }
                 .flatMap { it.declaredFields.asSequence() }
                 .firstOrNull { f ->
-                    Modifier.isStatic(f.modifiers) && f.type == declaringClass && f.get(null) === instance
+                    Modifier.isStatic(f.modifiers) && f.type == declaringClass && (
+                        f.get(null) === instance || f.get(null) == instance
+                    )
                 }
                 ?: throw ExpressionException("host function '$name': cannot locate the object instance field")
             field.declaringClass.kotlin to field.name

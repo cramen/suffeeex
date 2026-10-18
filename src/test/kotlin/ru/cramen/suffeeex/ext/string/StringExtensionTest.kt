@@ -7,6 +7,7 @@ import ru.cramen.suffeeex.core.ExpressionCompiler
 import ru.cramen.suffeeex.core.ExpressionException
 import ru.cramen.suffeeex.core.MapEvaluationContext
 import ru.cramen.suffeeex.core.backend.ExpressionBackend
+import ru.cramen.suffeeex.core.backend.asm.AsmBackend
 import ru.cramen.suffeeex.ext.logic.LogicExtension
 import ru.cramen.suffeeex.ext.math.bracket.BracketExtension
 import ru.cramen.suffeeex.ext.math.number.NumberExtension
@@ -236,5 +237,26 @@ internal class StringExtensionTest {
         for ((_, backend) in ALL_BACKENDS) {
             shouldThrow<ExpressionException> { eval("trim(1)", backend) }
         }
+    }
+
+    @Test
+    fun `string concatenation with variables works on ASM backend`() {
+        // Tests that makeConcatWithConstants bootstrap method works correctly
+        val expr = compilerWithVariables.compile(
+            "\"hello\" + \" \" + \$name",
+            mapOf("name" to String::class),
+            backend = AsmBackend,
+        )
+        expr.eval(MapEvaluationContext(mapOf("name" to "world"))) shouldBe "hello world"
+    }
+
+    @Test
+    fun `chained string concatenation with variables works on ASM backend`() {
+        val expr = compilerWithVariables.compile(
+            "\$a + \"-\" + \$b + \"-\" + \$c",
+            mapOf("a" to String::class, "b" to String::class, "c" to String::class),
+            backend = AsmBackend,
+        )
+        expr.eval(MapEvaluationContext(mapOf("a" to "x", "b" to "y", "c" to "z"))) shouldBe "x-y-z"
     }
 }

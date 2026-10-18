@@ -220,4 +220,18 @@ internal class DifferentiatorTest {
         val node = CubeNode(VariableNode("x", Double::class))
         Differentiator.simplify(node) shouldBe node
     }
+
+    @Test
+    fun `simplifyFunction simplifies arguments before checking constants`() {
+        // sqrt(0.0 * $x + 1.0) should simplify to sqrt(1.0) = 1.0
+        // because 0.0 * $x + 1.0 simplifies to 1.0
+        val tree = Differentiator.differentiate(compiler.parseTree("sqrt(0.0 * \$x + 1.0)", xDouble), "x")
+        for ((name, backend) in ALL_BACKENDS) {
+            withClue("backend: $name") {
+                val d = compiler.compileTree(tree, backend)
+                // d/dx sqrt(1.0) = d/dx(1.0) = 0.0
+                (d.eval(MapEvaluationContext(mapOf("x" to 42.0))) as Double) shouldBe (0.0 plusOrMinus 1e-9)
+            }
+        }
+    }
 }

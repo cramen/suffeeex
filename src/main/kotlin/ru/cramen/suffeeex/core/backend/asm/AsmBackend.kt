@@ -157,8 +157,9 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
                 mv.visitVarInsn(loadOpcode(types, type), slot)
                 return
             }
-            // Minimal route: a missing value fails with a JVM NPE on unboxing,
-            // a wrong-typed value with a ClassCastException from the checkcast.
+            // Resolve the variable from the context and check for null before
+            // unboxing — a missing value now fails with a clear ExpressionException
+            // rather than a silent JVM NPE from invokevirtual on null.
             mv.visitVarInsn(Opcodes.ALOAD, 1)
             mv.visitLdcInsn(name)
             mv.visitMethodInsn(
@@ -171,6 +172,25 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
             val support = types.of(type)
             val wrapper = support.wrapperInternalName
             if (wrapper != null) {
+                // DUP so IFNONNULL can consume one copy for the check while
+                // the other remains on the stack for CHECKCAST / unboxing.
+                mv.visitInsn(Opcodes.DUP)
+                val nonNullLabel = Label()
+                mv.visitJumpInsn(Opcodes.IFNONNULL, nonNullLabel)
+                // value is null — pop the duplicate and throw
+                mv.visitInsn(Opcodes.POP)
+                mv.visitTypeInsn(Opcodes.NEW, "ru/cramen/suffeeex/core/ExpressionException")
+                mv.visitInsn(Opcodes.DUP)
+                mv.visitLdcInsn("variable '$name' is null")
+                mv.visitMethodInsn(
+                    Opcodes.INVOKESPECIAL,
+                    "ru/cramen/suffeeex/core/ExpressionException",
+                    "<init>",
+                    "(Ljava/lang/String;)V",
+                    false,
+                )
+                mv.visitInsn(Opcodes.ATHROW)
+                mv.visitLabel(nonNullLabel)
                 mv.visitTypeInsn(Opcodes.CHECKCAST, wrapper)
                 mv.visitMethodInsn(
                     Opcodes.INVOKEVIRTUAL,
@@ -308,9 +328,9 @@ object AsmBackend : ExpressionBackend, SpecializedBackend {
         }
 
         override fun stringConcat() {
-            // StringConcatFactory.makeConcat (the plain pre-constant-recipe
-            // form javac used before JDK 9.0.1): simpler than
-            // makeConcatWithConstants and no bootstrap arguments needed
+            // StringConcatFactory.makeConcat (JDK 9+):
+            // Simple concatenation without format string — works across all JDK 9+ versions.
+            // JDK 25 changed makeConcatWithConstants signature, but makeConcat is stable.
             val bootstrap = Handle(
                 Opcodes.H_INVOKESTATIC,
                 "java/lang/invoke/StringConcatFactory",

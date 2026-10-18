@@ -64,7 +64,7 @@ class MathFunctionNode(
     val name: String,
     val args: List<TypedNode>,
     override val type: KClass<*>,
-    private val impl: (List<Any?>) -> Any?,
+    internal val impl: (List<Any?>) -> Any?,
 ) : TypedNode, DifferentiableNode {
     override fun build(): Expression {
         val built = args.map { it.build() }

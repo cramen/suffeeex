@@ -73,10 +73,13 @@ object Differentiator {
     }
 
     private fun simplifyFunction(node: MathFunctionNode): TypedNode {
-        // MathFunctionNode does not expose its implementation, so a call with
-        // non-constant arguments cannot be rebuilt with simplified args; only
-        // fully constant calls are folded.
-        return if (node.args.all(::isConstant)) fold(node) else node
+        // Simplify arguments first, then check if all are constant for folding.
+        val simplifiedArgs = node.args.map { simplify(it) }
+        return if (simplifiedArgs.all(::isConstant)) {
+            fold(MathFunctionNode(node.name, simplifiedArgs, node.type, node.impl))
+        } else {
+            MathFunctionNode(node.name, simplifiedArgs, node.type, node.impl)
+        }
     }
 
     /** A subtree that evaluates without any variables. */

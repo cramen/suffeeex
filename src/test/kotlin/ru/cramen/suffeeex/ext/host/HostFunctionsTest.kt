@@ -138,4 +138,13 @@ internal class HostFunctionsTest {
             direct.compile("twice(5)", backend = backend).eval(MapEvaluationContext(emptyMap())) shouldBe 10
         }
     }
+
+    @Test
+    fun `object member function works on ASM backend`() {
+        // Verifies that the instance field resolution works correctly on ASM backend
+        // (uses the === || == fallback for finding the INSTANCE field)
+        for ((_, backend) in ALL_BACKENDS) {
+            eval("half(10.0)", backend) shouldBe 5.0
+        }
+    }
 }

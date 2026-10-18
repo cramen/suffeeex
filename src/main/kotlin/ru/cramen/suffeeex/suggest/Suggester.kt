@@ -66,7 +66,9 @@ class Suggester(private val registry: ExtensionRegistry) {
         val tokens = try {
             tokenizer.tokenize(committedPrefix)
         } catch (e: ExpressionException) {
-            // unknown committed context: identifier categories only
+            // committed prefix contains characters not matched by any registered
+            // token parser (e.g. "$." without a member access extension); fall
+            // back to identifier-only candidates
             return filter(identifierCandidates(varTypes), tail)
         }
         val candidates = memberCompletion(tokens, varTypes) ?: when (positionOf(tokens)) {
