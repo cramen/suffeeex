@@ -3,6 +3,21 @@
 The project is pre-1.0: the public API may change between minor versions.
 Breaking changes are listed explicitly.
 
+## 0.4.0
+
+- **Bugfix:** `stringConcat()` bootstrap method now uses `StringConcatFactory.makeConcat`
+  (stable since JDK 9) — the previous `makeConcatWithConstants` had a broken
+  descriptor and was removed in JDK 17.
+- **Bugfix:** primitive variable loads now include a null-check before
+  unboxing; a missing context value throws `ExpressionException("variable 'x' is null")`
+  instead of a silent JVM NPE from `invokeVirtual` on null.
+- **Improvement:** `Differentiator.simplify()` now simplifies function
+  arguments before checking for constants, enabling expressions like
+  `sqrt(0.0 * $x + 1.0)` to simplify to `sqrt(1.0)`.
+- **Improvement:** `HostFunctionsExtension` instance field resolution now
+  falls back to `==` when `===` (referential equality) does not match,
+  improving compatibility with Java static fields.
+
 ## 0.3.0
 
 - Number literals: exponent form (`1e3`, `1.5e-3` → Double, `1e3f` → Float),
